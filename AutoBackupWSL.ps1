@@ -1,4 +1,4 @@
-#190819
+#191125
 #requires -version 6
 
 #--------------------ユーザ設定--------------------
@@ -206,7 +206,7 @@ function Send-Webhook
             #usernameはSlack側で設定する
         }
     }
-    Invoke-RestMethod -Uri $hookUrl -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json)))
+    Invoke-RestMethod -Uri $hookUrl -Method Post -Headers @{ "Content-Type" = "application/json" } -Body ([System.Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json)))
 }
 
 function Send-Toast
