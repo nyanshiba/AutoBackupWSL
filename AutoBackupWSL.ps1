@@ -1,8 +1,6 @@
-#191125
-#requires -version 6
+#requires -version 7
 
 #--------------------ユーザ設定--------------------
-#190819
 #設定1
 $Settings =
 @{
@@ -21,6 +19,8 @@ $Settings =
     @{
         #Webhook Url
         hookUrl = 'https://discordapp.com/api/webhooks/XXXXXXXXXX'
+        #icon
+        Icon = 'https://cdn.discordapp.com/emojis/709988551466549258.png'
     }
 }
 #設定2
@@ -28,10 +28,7 @@ $Settings +=
 @{
     #前処理
     BeginScript =
-    ({
-        #バックアップ開始時刻をWebhookで投稿する例
-        Send-Webhook -Content "Start: $((Get-Date).ToString("yyyy/MM/dd (ddd) HH:mm:ss"))"
-    })
+    ({})
     #ミラーバックアップリスト
     MirList =
     @(
@@ -57,8 +54,8 @@ $Settings +=
                     }
                 })
                 #↑のスクリプトブロックをリモートで実行する。WSL上とWindows上両方に鍵を置く(またはそれと同等の状態)必要がある。  
-                # -o StrictHostKeyChecking=no が出来なさそうなので、The authenticity of host can't be established.でyes/noを聞かれないようにしておくこと。  
-                Invoke-Command -ScriptBlock $ScriptBlock -HostName minecraft@example.com:22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
+                # -o StrictHostKeyChecking=no が出来なさそうなので、The authenticity of host can't be established.でyes/noを聞かれないようにしておくこと https://github.com/PowerShell/PowerShell/issues/6650
+                Invoke-Command -ScriptBlock $ScriptBlock -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
             })
             End =
             ({
@@ -75,9 +72,9 @@ $Settings +=
                         }
                     }
                 })
-                Invoke-Command -ScriptBlock $ScriptBlock -HostName minecraft@example.com:22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
+                Invoke-Command -ScriptBlock $ScriptBlock -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
                 #リモートバックアップが終わったことを通知する例
-                Send-Webhook -Content "Remote backup is complete."
+                Send-Webhook -Text "Remote backup is complete."
             })
         }
         [PSCustomObject]@{
@@ -123,14 +120,15 @@ $Settings +=
             Begin =
             ({
                 Get-Process | Where-Object {$_.MainWindowTitle -in "Survival1","Spigot1","Spigot2"} | ForEach-Object {
-                    Invoke-Process -File "powershell" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-off'"
-                    Invoke-Process -File "powershell" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-all flush'"
+                    # Minecraft Server Launcer https://gist.github.com/nyanshiba/deed14b985acfb203c519746d6cea857
+                    Invoke-Process -File "pwsh" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-off'"
+                    Invoke-Process -File "pwsh" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-all flush'"
                 }
             })
             End =
             ({
                 Get-Process | Where-Object {$_.MainWindowTitle -in "Survival1","Spigot1","Spigot2"} | ForEach-Object {
-                    Invoke-Process -File "powershell" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-on'"
+                    Invoke-Process -File "pwsh" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-on'"
                 }
             })
         }
@@ -143,70 +141,149 @@ $Settings +=
     #後処理
     EndScript =
     ({
-        #バックアップ終了時刻をWebhookで投稿する例
-        Send-Webhook -Content "End: $((Get-Date).ToString("yyyy/MM/dd (ddd) HH:mm:ss"))"
-        #自作関数の例(ディレクトリツリー取得)
-        function Get-FolderSize
-        {
-            param
-            (
-                [String]$Dir,
-                [String]$Exclude,
-                [Int]$Depth = 3,
-                [String]$Prefix = ""
-            )
-            if ($Prefix -eq "")
-            {
-                "$Dir"
-            }
-            Get-ChildItem $Dir -Directory -Exclude $Exclude | ForEach-Object {
-                #"$Prefix+--$(((/usr/bin/du -clhs "$($_.Name)") -split "\s+" | Sort-Object -Descending) -join ' ')"
-                "$Prefix+--$($_.Name)"
-                if ($Depth -ge 2)
-                {
-                    Get-FolderSize -Dir $_.FullName -Depth ($Depth - 1) -Prefix ($Prefix + '|  ')
-                }
-            }
-        }
-        #ディレクトリツリー
-        $GenTree = Get-FolderSize -Dir "D:\" -Depth 2 | Out-String
-        $GenTree
-        #Invoke-Processが集計する終了コードを取得
-        $ErrorCount = ($ExitCode | Where-Object {$_ -ne 0}).Count
-        Write-Output "$ErrorCount Errors."
-        #↑のローカル変数を含めてWebhookでバックアップ結果を投稿
-        Send-Webhook -Content "**Backup Summary $($Settings.DateTime)**`n$ErrorCount Errors.`n``````$GenTree`n`n$(wsl /bin/df /mnt/* -h | Out-String)``````"
-        #トースト通知
-        Send-Toast -Icon "$PSHome\assets\Powershell_black.ico" -Title "$(Split-Path $PSCommandPath -Leaf)" -Text "Backup Finished.`n$ErrorCount Errors."
+        #WSLにマウントされているWindows上のディスク残量一覧をWebhookでPostする例
+        Send-Webhook -Text "``````$(wsl /bin/df /mnt/* -h | Out-String)``````"
+
+        #世代管理ディレクトリ構造をWebhookでPostする例（Discordのシンタックスハイライトを利用している）
+        Send-Webhook -Text "``````md`n$(Get-FolderStructure -Dir /mnt/d -Depth 1)`n``````"
+
+        #サマリーをWebhookでPostする例
+        Send-Webhook -End
+
+        #トースト通知を行う例
+        Send-Toast -Icon "$PSHome\assets\Powershell_black.ico" -Title "$(Split-Path $PSCommandPath -Leaf)" -Text "Backup Finished at $End.`n$ErrorCount Errors."
     })
 }
 
-#--------------------関数--------------------   
+#--------------------関数--------------------
 function Send-Webhook
 {
     param
     (
-        [String]$UserName = "$(Split-Path $PSCommandPath -Leaf)",
-        [String]$Content = "投稿内容が未指定です",
-        [String]$hookUrl = $Settings.Post.hookUrl
+        [string]$Text,
+        [System.Object]$Payload,
+        [switch]$End,
+        [string]$WebhookUrl = $Settings.Post.hookurl
     )
-    $Content
-    if ($hookUrl -match "discord")
+
+    if ($Null -eq $WebhookUrl)
     {
-        Write-Output "Webhook: Discord"
-        $payload = [PSCustomObject]@{
-            content = $Content
-            username = $UserName
-        }
-    } elseif ($hookUrl -match "slack")
+        return
+    }
+
+    #Payloadが指定されている場合はそのままInvoke-RestMethod
+
+    #Textが指定されている場合はPayloadに変換
+    if ($Text)
     {
-        Write-Output "Webhook: Slack"
-        $payload = [PSCustomObject]@{
-            text = $Content
-            #usernameはSlack側で設定する
+        switch -Wildcard ($Settings.Post.hookUrl)
+        {
+            "*discord*"
+            {
+                $Payload =
+                [PSCustomObject]@{
+                    content = "$Text"
+                }
+            }
+            "*slack*"
+            {
+                $Payload =
+                [PSCustomObject]@{
+                    text = "$Text"
+                }
+            }
         }
     }
-    Invoke-RestMethod -Uri $hookUrl -Method Post -Headers @{ "Content-Type" = "application/json" } -Body ([System.Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json)))
+
+    #Payloadが指定されず、終了時に実行している場合のみPayloadをこちらで用意する
+    if (!$Payload -And $End)
+    {
+        switch -Wildcard ($Settings.Post.hookUrl)
+        {
+            "*discord*"
+            {
+                $Payload =
+                [PSCustomObject]@{
+                    username = "$(Split-Path $PSCommandPath -Leaf)"
+                    embeds =
+                    @(
+                        @{
+                            title = "$(Split-Path $PSCommandPath -Leaf)"
+                            description = "Backup Summary $($Settings.DateTime)**"
+                            color = 0x274a7c
+                            thumbnail =
+                            @{
+                                url = $Settings.Post.Icon
+                            }
+                            fields =
+                            @(
+                                @{
+                                    name = "Start"
+                                    value = $Start
+                                    inline = 'true'
+                                },
+                                @{
+                                    name = "End"
+                                    value = $End
+                                    inline = 'true'
+                                }
+                                @{
+                                    name = "Errors"
+                                    value = $ErrorCount
+                                    inline = 'true'
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+            "*slack*"
+            {
+                $Payload =
+                [PSCustomObject]@{
+                    text = "Backup Summary $($Settings.DateTime)**"
+                    blocks =
+                    @(
+                        @{
+                            type = "section"
+                            text =
+                            @{
+                                type = "mrkdwn"
+                                text = "Backup Summary $($Settings.DateTime)**"
+                            }
+                            accessory =
+                            @{
+                                type = "image"
+                                image_url = $Settings.Post.Icon
+                                alt_text = "$(Split-Path $PSCommandPath -Leaf)"
+                            }
+                        }
+                        @{
+                            type = "section"
+                            block_id = "section789"
+                            fields =
+                            @(
+                                @{
+                                    type = "mrkdwn"
+                                    text = "*Start*`n$Start"
+                                }
+                                @{
+                                    type = "mrkdwn"
+                                    text = "*End*`n$End"
+                                }
+                                @{
+                                    type = "mrkdwn"
+                                    text = "*Errors*`n$ErrorCount"
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    Invoke-RestMethod -Uri $WebhookUrl -Method Post -Headers @{ "Content-Type" = "application/json" } -Body ([System.Text.Encoding]::UTF8.GetBytes(($Payload | ConvertTo-Json -Depth 5)))
 }
 
 function Send-Toast
@@ -242,6 +319,42 @@ function Send-Toast
 
     #ToastNotificationクラスのCreateToastNotifierメソッドを呼び出し、変数xmlをトースト
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($AppId).Show($xml)
+}
+
+function Get-FolderStructure
+{
+    param
+    (
+        [string]$Dir,
+        [int]$Depth = 2,
+        [string]$Prefix = ""
+    )
+    if ($Prefix -eq "")
+    {
+        "<$Dir>"
+    }
+    Get-ChildItem $Dir | ForEach-Object {
+        if ($_.LinkType -in "Junction","SymbolicLink","HardLink")
+        {
+            "$Prefix+-[$($_.Name)]()"
+        }
+        elseif ($_.Extension -in ".gz",".bz2",".xz",".jar")
+        {
+            "$Prefix+* $($_.Name) *"
+        }
+        elseif (!$_.PSIsContainer)
+        {
+            "$Prefix+--$($_.Name)"
+        }
+        elseif ($_.PSIsContainer)
+        {
+            "$Prefix+-<$($_.Name)>"
+        }
+        if ($_.PSIsContainer -And $Depth -ge 2)
+        {
+            Get-FolderStructure -Dir $_.FullName -Depth ($Depth - 1) -Prefix ($Prefix + '|  ')
+        }
+    }
 }
 
 function ConvertTo-WslPath
@@ -412,26 +525,39 @@ function Invoke-IncrBackup
     }
 }
 
-#--------------------Log--------------------
+#バックアップ開始時刻
+$Start = "$((Get-Date).ToString("yyyy-MM-dd (ddd) HH:mm:ss"))"
+
 #ログ取り開始
-Start-Transcript -LiteralPath "$($Settings.Log.Path)$($Settings.DateTime).txt"
+Start-Transcript -LiteralPath "$($Settings.Log.Path)$($Settings.DateTime).log.md"
+
+#--------------------ログローテ--------------------
 #古いログの削除
-Get-ChildItem "$($Settings.Log.Path)/*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -Skip $Settings.Log.CntMax | ForEach-Object {
+Write-Output "`n## ログローテ`n"
+Get-ChildItem -LiteralPath "$($Settings.Log.Path)/" -Include *.txt,*.log.md | Sort-Object LastWriteTime -Descending | Select-Object -Skip $Settings.Log.CntMax | ForEach-Object {
     Write-Output "Log: Deleted $_"
     Remove-Item -LiteralPath "$_"
 }
 
 #ユーザ設定をログに記述
-Write-Output "#--------------------ユーザ設定--------------------`n$($Settings | ConvertTo-Json | Out-String -Width 4096)`n"
+Write-Output @"
+## ユーザ設定
 
-#--------------------Begin--------------------
+``````json
+$($Settings | ConvertTo-Json | Out-String -Width 4096)
+``````
+"@
+
+#--------------------前処理--------------------
+Write-Output "`n## 前処理`n"
 &$Settings.BeginScript
 
 #--------------------ミラー--------------------
-Write-Output "`n#--------------------ミラー--------------------`n"
+Write-Output "`n## ミラー`n"
 #ミラーリストの中から、最低限の設定項目があるもののみ実行
 $Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
-    $_ | Format-Table -Property *
+    Write-Output "`n### $($_.SrcPath)`n"
+    Write-Output "``````$($_ | Format-Table -Property *)``````"
     #コピー先が無ければ新しいディレクトリの作成
     if (!(Test-Path "$($_.DstPath)"))
     {
@@ -443,10 +569,11 @@ $Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
 }
 
 #--------------------世代管理--------------------
-Write-Output "`n#--------------------世代管理--------------------`n"
+Write-Output "`n## 世代管理`n"
 #世代管理リストの中から、最低限の設定項目があるもののみ実行
 $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Object {
-    $_ | Format-Table -Property *
+    Write-Output "`n### $($_.SrcPath)`n"
+    Write-Output "``````$($_ | Format-Table -Property *)``````"
     #同じコピー先で最初 グローバル設定 世代管理
     if ($_.DstGenThold)
     {
@@ -467,7 +594,8 @@ $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Ob
             Write-Output "Rename-Item: $($_.DstParentPath)/$($AllGen | Select-Object -Last $_.DstGenThold | Select-Object -Index 0) -> $($_.DstParentPath)$($Settings.DateTime)"
             Rename-Item -LiteralPath "$($_.DstParentPath)/$($AllGen | Select-Object -Last $_.DstGenThold | Select-Object -Index 0)" "$($_.DstParentPath)$($Settings.DateTime)"
         }
-        $AllGen
+        #世代管理の親ディレクトリ構造をログに出力
+        "``````md`n$(Get-FolderStructure -Dir $_.DstParentPath -Depth 1)`n``````"
     }
     #新しいディレクトリの作成 世代数が閾値未満、DstChildPath、設定の不備への対応
     if (!(Test-Path "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)"))
@@ -488,7 +616,16 @@ $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Ob
     }
 }
 
-#--------------------End--------------------
+#バックアップ終了時刻
+$End = "$((Get-Date).ToString("yyyy-MM-dd (ddd) HH:mm:ss"))"
+
+#終了コード配列を参照して、エラーがあった数を集計
+$ErrorCount = ($ExitCode | Where-Object {$_ -ne 0}).Count
+
+#--------------------後処理--------------------
+Write-Output "`n## 後処理`n"
 &$Settings.EndScript
 
+
+#ログ取り停止
 Stop-Transcript
