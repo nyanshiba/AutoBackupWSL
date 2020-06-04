@@ -557,7 +557,7 @@ Write-Output "`n## ミラー`n"
 #ミラーリストの中から、最低限の設定項目があるもののみ実行
 $Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
     Write-Output "`n### $($_.SrcPath)`n"
-    Write-Output "``````$($_ | Format-Table -Property *)``````"
+    Write-Output "``````$($_ | Format-Table -Property * | Out-String -Width 4096)``````"
     #コピー先が無ければ新しいディレクトリの作成
     if (!(Test-Path "$($_.DstPath)"))
     {
@@ -573,7 +573,7 @@ Write-Output "`n## 世代管理`n"
 #世代管理リストの中から、最低限の設定項目があるもののみ実行
 $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Object {
     Write-Output "`n### $($_.SrcPath)`n"
-    Write-Output "``````$($_ | Format-Table -Property *)``````"
+    Write-Output "``````$($_ | Format-Table -Property * | Out-String -Width 4096)``````"
     #同じコピー先で最初 グローバル設定 世代管理
     if ($_.DstGenThold)
     {
@@ -595,7 +595,7 @@ $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Ob
             Rename-Item -LiteralPath "$($_.DstParentPath)/$($AllGen | Select-Object -Last $_.DstGenThold | Select-Object -Index 0)" "$($_.DstParentPath)$($Settings.DateTime)"
         }
         #世代管理の親ディレクトリ構造をログに出力
-        "``````md`n$(Get-FolderStructure -Dir $_.DstParentPath -Depth 1)`n``````"
+        "``````markdown`n$(Get-FolderStructure -Dir $_.DstParentPath -Depth 1)`n``````"
     }
     #新しいディレクトリの作成 世代数が閾値未満、DstChildPath、設定の不備への対応
     if (!(Test-Path "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)"))
