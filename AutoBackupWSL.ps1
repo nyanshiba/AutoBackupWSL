@@ -168,7 +168,7 @@ function Send-Webhook
 
     if ($Null -eq $WebhookUrl)
     {
-        return
+        return "ERROR Send-Webhook Webhook URL not exist"
     }
 
     #Payloadが指定されている場合はそのままInvoke-RestMethod
@@ -378,7 +378,7 @@ function Invoke-Process
         [String[]]$ArgList
     )
 
-    Write-Output "`nInvoke-Process`nFile: $File`nArg: $Arg`nArgList: $ArgList`n"
+    "DEBUG Invoke-Process`nFile: $File`nArg: $Arg`nArgList: $ArgList`n"
 
     #cf. https://github.com/guitarrapc/PowerShellUtil/blob/master/Invoke-Process/Invoke-Process.ps1 
 
@@ -445,7 +445,7 @@ function Invoke-Process
     # Get Process result
     $stdSb.ToString().Trim()
     $errorSb.ToString().Trim()
-    Write-Output "ExitCode: $($ps.ExitCode)"
+    "DEBUG ExitCode: $($ps.ExitCode)"
     [Array]$script:ExitCode += $ps.ExitCode
 
     if ($Null -ne $process)
@@ -534,8 +534,8 @@ Start-Transcript -LiteralPath "$($Settings.Log.Path)$($Settings.DateTime).log"
 "#--------------------ログローテ--------------------"
 #古いログの削除
 Get-ChildItem -LiteralPath "$($Settings.Log.Path)/" -Include *.txt,*.log | Sort-Object LastWriteTime -Descending | Select-Object -Skip $Settings.Log.CntMax | ForEach-Object {
-    Write-Output "Log: Deleted $_"
     Remove-Item -LiteralPath "$_"
+    "INFO Remove-Item: $_"
 }
 
 "#--------------------ユーザ設定--------------------"
@@ -555,59 +555,75 @@ foreach ($line in (Get-Content -LiteralPath $PSCommandPath) -split "`n")
 "#--------------------ミラー--------------------"
 #ミラーリストの中から、最低限の設定項目があるもののみ実行
 $Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
+
+    #ログ
     $_ | Format-Table -Property *
+
     #コピー先が無ければ新しいディレクトリの作成
     if (!(Test-Path "$($_.DstPath)"))
     {
-        Write-Output "New-Item $($_.DstPath)"
+        "INFO New-Item $($_.DstPath)"
         $Null = New-Item "$($_.DstPath)" -itemType Directory
     }
+
     #差分バックアップ
     Invoke-DiffBackup -Execute "$($_.Execute)" -Clude "$($_.SrcClude)" -Src "$($_.SrcPath)" -Dst "$($_.DstPath)" -Begin $_.Begin -End $_.End
 }
 
 "#--------------------世代管理--------------------"
-#世代管理リストの中から、最低限の設定項目があるもののみ実行
+#設定の不備がないディレクトリのみ実行
 $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Object {
+
+    #ログ
     $_ | Format-Table -Property *
-    #同じコピー先で最初 グローバル設定 世代管理
+
+    #DstGenTholdが設定されたディレクトリを処理する直前に世代管理ローテーションを行う
+    #同じDstParentPathを持つディレクトリは、ここで作成されたディレクトリを使って世代管理される
     if ($_.DstGenThold)
     {
-        #Excludeは必ず指定する必要があるため、有無で条件分岐する必要はない
-        $AllGen = Get-ChildItem -Directory "$($_.DstParentPath)/*" -Name -Exclude $_.DstGenExclude
-        if (!$?)
+        #DstParentPath内の世代管理されたディレクトリを取得する
+        try
         {
-            #コピー先で例外 今回のループは抜ける
-            return "Get-ChildItem $($_.DstParentPath)/* Exception."
-        } elseif ($AllGen.Count -ge $_.DstGenThold)
+            #try catchで捕まえるために-ErrorAction Stopが必要
+            $AllGen = Get-ChildItem -Directory "$($_.DstParentPath)/*" -Name -Exclude $_.DstGenExclude -ErrorAction Stop
+        }
+        catch
+        {
+            #DstParentPath内の世代の取得すらできないのでループを抜ける
+            return "ERROR Get-ChildItem DstParentPath: $($_.DstParentPath)/*"
+        }
+
+        #
+        if ($AllGen.Count -ge $_.DstGenThold)
         {
             #世代数が閾値以上なので閾値内に丸めて最も古い世代をリネームしインクリメンタルバックアップ
             foreach ($OldGen in ($AllGen | Sort-Object -Descending | Select-Object -Skip $_.DstGenThold))
             {
-                Write-Output "Remove-Item: $($_.DstParentPath)/$OldGen"
                 Remove-Item -LiteralPath "$($_.DstParentPath)/$OldGen" -Recurse -Force
+                "INFO Remove-Item: $($_.DstParentPath)/$OldGen"
             }
-            Write-Output "Rename-Item: $($_.DstParentPath)/$($AllGen | Select-Object -Last $_.DstGenThold | Select-Object -Index 0) -> $($_.DstParentPath)$($Settings.DateTime)"
-            Rename-Item -LiteralPath "$($_.DstParentPath)/$($AllGen | Select-Object -Last $_.DstGenThold | Select-Object -Index 0)" "$($_.DstParentPath)$($Settings.DateTime)"
         }
-        #世代管理の親ディレクトリ構造をログに出力
+
+        #DstParentPath内のディレクトリ構造をログに出力
         Get-FolderStructure -Dir $_.DstParentPath -Depth 1
     }
-    #新しいディレクトリの作成 世代数が閾値未満、DstChildPath、設定の不備への対応
+
+    #新しい世代ディレクトリの作成
+    #ディレクトリの存在で判別すると DstGenTholdが設定されたディレクトリ, DstChildPathが設定されたディレクトリ, 設定の不備 に実行される
     if (!(Test-Path "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)"))
     {
-        Write-Output "New-Item $($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)"
         $Null = New-Item "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)" -itemType Directory
+        "INFO New-Item $($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)"
     }
-    #常に行う グローバル設定がなされていれば$AllGen変数が引き継がれるため、ここが正しく実行される
-    #$AllGen.Countの値は更新されないので、1世代目が作成されても0 フルかインクリメンタル(リンク先の有無)の判別に使える
-    #設定に不備があっても$AllGen.Count -eq 0でフルバックアップに流れてくれるかな…くらいのお気持ち
+
+    #フルバックアップかインクリメンタルバックアップを実行するかの判別
+    #$AllGen.Countは新しい世代ディレクトリの作成前の値なので、最初に世代が無ければ常に0
     if ($AllGen.Count -eq 0)
     {
         #世代数が0なので新しいディレクトリにフルバックアップ
         Invoke-DiffBackup -Clude "$($_.SrcClude)" -Src "$($_.SrcPath)" -Dst "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)" -Begin $_.Begin -End $_.End
     } else {
-        #インクリメンタルバックアップ リンク先は今の世代が作成される前の時点での最も新しい世代なので-Last 1でおk
+        #インクリメンタルバックアップ リンク先は新しい世代ディレクトリ作成前の最後尾
         Invoke-IncrBackup -Clude "$($_.SrcClude)" -Link "$($_.DstParentPath)/$($AllGen | Select-Object -Last 1)$($_.DstChildPath)" -Src "$($_.SrcPath)" -Dst "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)" -Begin $_.Begin -End $_.End
     }
 }
@@ -617,6 +633,7 @@ $End = "$((Get-Date).ToString("yyyy-MM-dd (ddd) HH:mm:ss"))"
 
 #終了コード配列を参照して、エラーがあった数を集計
 $ErrorCount = ($ExitCode | Where-Object {$_ -ne 0}).Count
+"INFO ErrorCount: $ErrorCount"
 
 "#--------------------後処理--------------------"
 &$Settings.EndScript
