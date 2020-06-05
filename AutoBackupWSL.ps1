@@ -529,35 +529,26 @@ function Invoke-IncrBackup
 $Start = "$((Get-Date).ToString("yyyy-MM-dd (ddd) HH:mm:ss"))"
 
 #ログ取り開始
-Start-Transcript -LiteralPath "$($Settings.Log.Path)$($Settings.DateTime).log.md"
+Start-Transcript -LiteralPath "$($Settings.Log.Path)$($Settings.DateTime).log"
 
-#--------------------ログローテ--------------------
+"#--------------------ログローテ--------------------"
 #古いログの削除
-Write-Output "`n## ログローテ`n"
-Get-ChildItem -LiteralPath "$($Settings.Log.Path)/" -Include *.txt,*.log.md | Sort-Object LastWriteTime -Descending | Select-Object -Skip $Settings.Log.CntMax | ForEach-Object {
+Get-ChildItem -LiteralPath "$($Settings.Log.Path)/" -Include *.txt,*.log | Sort-Object LastWriteTime -Descending | Select-Object -Skip $Settings.Log.CntMax | ForEach-Object {
     Write-Output "Log: Deleted $_"
     Remove-Item -LiteralPath "$_"
 }
 
+"#--------------------ユーザ設定--------------------"
 #ユーザ設定をログに記述
-Write-Output @"
-## ユーザ設定
+$Settings | ConvertTo-Json | Out-String -Width 4096
 
-``````json
-$($Settings | ConvertTo-Json | Out-String -Width 4096)
-``````
-"@
-
-#--------------------前処理--------------------
-Write-Output "`n## 前処理`n"
+"#--------------------前処理--------------------"
 &$Settings.BeginScript
 
-#--------------------ミラー--------------------
-Write-Output "`n## ミラー`n"
+"#--------------------ミラー--------------------"
 #ミラーリストの中から、最低限の設定項目があるもののみ実行
 $Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
-    Write-Output "`n### $($_.SrcPath)`n"
-    Write-Output "``````$($_ | Format-Table -Property * | Out-String -Width 4096)``````"
+    $_ | Format-Table -Property *
     #コピー先が無ければ新しいディレクトリの作成
     if (!(Test-Path "$($_.DstPath)"))
     {
@@ -568,12 +559,10 @@ $Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
     Invoke-DiffBackup -Execute "$($_.Execute)" -Clude "$($_.SrcClude)" -Src "$($_.SrcPath)" -Dst "$($_.DstPath)" -Begin $_.Begin -End $_.End
 }
 
-#--------------------世代管理--------------------
-Write-Output "`n## 世代管理`n"
+"#--------------------世代管理--------------------"
 #世代管理リストの中から、最低限の設定項目があるもののみ実行
 $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Object {
-    Write-Output "`n### $($_.SrcPath)`n"
-    Write-Output "``````$($_ | Format-Table -Property * | Out-String -Width 4096)``````"
+    $_ | Format-Table -Property *
     #同じコピー先で最初 グローバル設定 世代管理
     if ($_.DstGenThold)
     {
@@ -595,7 +584,7 @@ $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Ob
             Rename-Item -LiteralPath "$($_.DstParentPath)/$($AllGen | Select-Object -Last $_.DstGenThold | Select-Object -Index 0)" "$($_.DstParentPath)$($Settings.DateTime)"
         }
         #世代管理の親ディレクトリ構造をログに出力
-        "``````markdown`n$(Get-FolderStructure -Dir $_.DstParentPath -Depth 1)`n``````"
+        Get-FolderStructure -Dir $_.DstParentPath -Depth 1
     }
     #新しいディレクトリの作成 世代数が閾値未満、DstChildPath、設定の不備への対応
     if (!(Test-Path "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)"))
@@ -622,8 +611,7 @@ $End = "$((Get-Date).ToString("yyyy-MM-dd (ddd) HH:mm:ss"))"
 #終了コード配列を参照して、エラーがあった数を集計
 $ErrorCount = ($ExitCode | Where-Object {$_ -ne 0}).Count
 
-#--------------------後処理--------------------
-Write-Output "`n## 後処理`n"
+"#--------------------後処理--------------------"
 &$Settings.EndScript
 
 
