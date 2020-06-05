@@ -593,15 +593,19 @@ $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Ob
             return "ERROR Get-ChildItem DstParentPath: $($_.DstParentPath)/*"
         }
 
-        #
+        #世代数をが閾値未満に丸め込む
         if ($AllGen.Count -ge $_.DstGenThold)
         {
-            #世代数が閾値以上なので閾値内に丸めて最も古い世代をリネームしインクリメンタルバックアップ
+            #世代数が余計にある場合は削除 世代数を減らさない限り実行されない かなり時間がかかる
             foreach ($OldGen in ($AllGen | Sort-Object -Descending | Select-Object -Skip $_.DstGenThold))
             {
                 Remove-Item -LiteralPath "$($_.DstParentPath)/$OldGen" -Recurse -Force
                 "INFO Remove-Item: $($_.DstParentPath)/$OldGen"
             }
+            #DstParentPath内で最も古い世代をリネームして使いまわすことで、変更が少ない&サイズが大きい場合は特に速くなる
+            #直前の世代とのインクリメンタルではあるが、最古の世代との差分であるので、ログが汚くなる
+            Rename-Item -LiteralPath "$($_.DstParentPath)/$($AllGen | Select-Object -Index 0)" "$($_.DstParentPath)$($Settings.DateTime)"
+            "INFO Rename-Item: $($_.DstParentPath)/$($AllGen | Select-Object -Index 0) -> $($_.DstParentPath)$($Settings.DateTime)"
         }
 
         #DstParentPath内のディレクトリ構造をログに出力
