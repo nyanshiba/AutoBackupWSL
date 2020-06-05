@@ -540,7 +540,14 @@ Get-ChildItem -LiteralPath "$($Settings.Log.Path)/" -Include *.txt,*.log | Sort-
 
 "#--------------------ユーザ設定--------------------"
 #ユーザ設定をログに記述
-$Settings | ConvertTo-Json | Out-String -Width 4096
+foreach ($line in (Get-Content -LiteralPath $PSCommandPath) -split "`n")
+{
+    if ($line -match '#--------------------関数--------------------')
+    {
+        break
+    }
+    $line
+}
 
 "#--------------------前処理--------------------"
 &$Settings.BeginScript
