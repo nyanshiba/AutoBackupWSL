@@ -129,7 +129,7 @@ $Settings +=
         Send-Webhook -Text "``````md`n$(Get-FolderStructure -Dir /mnt/d -Depth 1)`n``````"
 
         #サマリーをWebhookでPostする例
-        Send-Webhook -End
+        Send-Webhook -EndEmbed
 
         #トースト通知を行う例
         Send-Toast -Icon "$PSHome\assets\Powershell_black.ico" -Title "$(Split-Path $PSCommandPath -Leaf)" -Text "Backup Finished at $End.`n$ErrorCount Errors."
@@ -143,7 +143,7 @@ function Send-Webhook
     (
         [string]$Text,
         [System.Object]$Payload,
-        [switch]$End,
+        [switch]$EndEmbed,
         [string]$WebhookUrl = $Settings.Post.hookurl
     )
 
@@ -176,8 +176,8 @@ function Send-Webhook
         }
     }
 
-    #Payloadが指定されず、終了時に実行している場合のみPayloadをこちらで用意する
-    if (!$Payload -And $End)
+    #EmdEmbedが指定された場合は終了時用のPayloadをつくる
+    if ($EndEmbed)
     {
         switch -Wildcard ($Settings.Post.hookUrl)
         {
