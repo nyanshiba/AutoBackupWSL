@@ -39,42 +39,23 @@ $Settings +=
             Execute = "-e 'ssh -p 22 -o StrictHostKeyChecking=no -i ~/.ssh/remote_id_ed25519'"
             Begin =
             ({
-                #Minecraftサーバのバックアップ前に、screenのPIDを取得し、全てにsave-off, save-all flushを送る
-                $ScriptBlock =
-                ({
-                    /usr/bin/screen -ls | ForEach-Object {
-                        switch ([Regex]::Split($_, '\t|\.')[1])
-                        {
-                            {$Null -ne $_ -And '' -ne $_} {
-                                /usr/bin/screen -p 0 -S $_ -X eval 'stuff "save-off"\\015'
-                                /usr/bin/screen -p 0 -S $_ -X eval 'stuff "save-all\\040flush"\\015'
-                                Write-Output "save-off, save-all flush: $_"
-                            }
-                        }
-                    }
-                })
-                #↑のスクリプトブロックをリモートで実行する。WSL上とWindows上両方に鍵を置く(またはそれと同等の状態)必要がある。  
+                #このディレクトリのバックアップ直前に行われる処理
+
+                #AutoBackupWSL.ps1内のInvoke-Command関数を使用してプロセスを実行する例
+                #Minecraftサーバのバックアップ前にsave-off, save-all flushを送る例 https://nyanshiba.com/blog/minecraft-java-edition-3-linux-server#discordへ通知できるminecraftサーバ管理スクリプト-msl.ps1
+                Invoke-Command -ScriptBlock ${function:Invoke-Process} -ArgumentList 'pwsh', "-File /home/minecraft/Servers/msl.ps1 -Name CBWSurvival -Action `"save-off`"" -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
+                Invoke-Command -ScriptBlock ${function:Invoke-Process} -ArgumentList 'pwsh', "-File /home/minecraft/Servers/msl.ps1 -Name CBWSurvival -Action `"save-all flush`"" -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
+                #WSL上とWindows上両方に鍵を置く(またはそれと同等の状態)必要がある。  
                 # -o StrictHostKeyChecking=no が出来なさそうなので、The authenticity of host can't be established.でyes/noを聞かれないようにしておくこと https://github.com/PowerShell/PowerShell/issues/6650
-                Invoke-Command -ScriptBlock $ScriptBlock -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
             })
             End =
             ({
-                #Minecraftサーバのバックアップ後、screenのPIDを取得し、全てにsave-onを送る
-                $ScriptBlock =
-                ({
-                    /usr/bin/screen -ls | ForEach-Object {
-                        switch ([Regex]::Split($_, '\t|\.')[1])
-                        {
-                            {$Null -ne $_ -And '' -ne $_} {
-                                /usr/bin/screen -p 0 -S $_ -X eval 'stuff "save-on"\\015'
-                                Write-Output "save-on: $_"
-                            }
-                        }
-                    }
-                })
-                Invoke-Command -ScriptBlock $ScriptBlock -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
+                #このディレクトリのバックアップ直後に行われる処理
+
+                #Minecraftサーバのバックアップ前にsave-onを送る例
+                Invoke-Command -ScriptBlock ${function:Invoke-Process} -ArgumentList 'pwsh', "-File /home/minecraft/Servers/msl.ps1 -Name CBWSurvival -Action `"save-on`"" -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
                 #リモートバックアップが終わったことを通知する例
-                Send-Webhook -Text "Remote backup is complete."
+                Send-Webhook -Text "minecraft@example.com Remote backup is complete."
             })
         }
         [PSCustomObject]@{
