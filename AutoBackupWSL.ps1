@@ -163,6 +163,7 @@ function Send-Webhook
             {
                 $Payload =
                 [PSCustomObject]@{
+                    username = "$(Split-Path $PSCommandPath -Leaf)"
                     content = "$Text"
                 }
             }
