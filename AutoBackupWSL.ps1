@@ -191,7 +191,7 @@ function Send-Webhook
                     @(
                         @{
                             title = "$(Split-Path $PSCommandPath -Leaf)"
-                            description = "Backup Summary $($Settings.DateTime)**"
+                            description = "Backup Summary $($Settings.DateTime)"
                             color = 0x274a7c
                             thumbnail =
                             @{
