@@ -223,7 +223,7 @@ function Send-Webhook
             {
                 $Payload =
                 [PSCustomObject]@{
-                    text = "Backup Summary $($Settings.DateTime)**"
+                    text = "Backup Summary $($Settings.DateTime)"
                     blocks =
                     @(
                         @{
@@ -492,7 +492,7 @@ function Invoke-IncrBackup
     )
 
     "DEBUG Invoke-IncrBackup"
-    
+
     if ($Begin)
     {
         Invoke-Command -ScriptBlock $Begin
