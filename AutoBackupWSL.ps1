@@ -457,6 +457,9 @@ function Invoke-DiffBackup
         [ScriptBlock]$Begin,
         [ScriptBlock]$End
     )
+
+    "DEBUG Invoke-DiffBackup"
+
     if ($Begin)
     {
         Invoke-Command -ScriptBlock $Begin
@@ -487,6 +490,9 @@ function Invoke-IncrBackup
         [ScriptBlock]$Begin,
         [ScriptBlock]$End
     )
+
+    "DEBUG Invoke-IncrBackup"
+    
     if ($Begin)
     {
         Invoke-Command -ScriptBlock $Begin
