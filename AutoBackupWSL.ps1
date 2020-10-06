@@ -126,13 +126,13 @@ $Settings +=
         Send-Webhook -Text "``````$(wsl /bin/df /mnt/* -h | Out-String)``````"
 
         #世代管理ディレクトリ構造をWebhookでPostする例（Discordのシンタックスハイライトを利用している）
-        Send-Webhook -Text "``````md`n$(Get-FolderStructure -Dir /mnt/d -Depth 1)`n``````"
+        Send-Webhook -Text "``````md`n$(Get-FolderStructure -Dir D: -Depth 1 | Select-Object -First 5 -Last 10 | Out-String -Width 4096)`n``````"
 
         #サマリーをWebhookでPostする例
         Send-Webhook -EndEmbed
 
         #トースト通知を行う例
-        Send-Toast -Icon "$PSHome\assets\Powershell_black.ico" -Title "$(Split-Path $PSCommandPath -Leaf)" -Text "Backup Finished at $End.`n$ErrorCount Errors."
+        Send-Toast
     })
 }
 
@@ -270,12 +270,6 @@ function Send-Webhook
 
 function Send-Toast
 {
-    param
-    (
-        [String]$Icon = "$PSHome\assets\Powershell_black.ico",
-        [String]$Title = "$(Split-Path $PSCommandPath -Leaf)",
-        [String]$Text = "通知内容が未指定です"
-    )
     #Windows PowershellでないPowershellのAppIDを取得
     $AppId = "$((Get-StartApps | Where-Object {$_.Name -match "PowerShell" -And $_.Name -notmatch "Windows"} | Select-Object -First 1).AppID)"
 
@@ -287,13 +281,20 @@ function Send-Toast
     #XmlDocumentクラスをインスタンス化
     $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
     #LoadXmlメソッドを呼び出し、変数templateをWinRT型のxmlとして読み込む
+    #https://docs.microsoft.com/en-us/windows/uwp/design/shell/tiles-and-notifications/adaptive-interactive-toasts
     $xml.LoadXml(@"
 <toast>
 <visual>
-    <binding template="ToastImageAndText02">
-        <image id="1" src="$Icon" alt="Powershell Core"/>
-        <text id="1">$Title</text>
-        <text id="2">$Text</text>
+    <binding template="ToastGeneric">
+        <text hint-maxLines="1">$(Split-Path $PSCommandPath -Leaf)</text>
+        <text>Backup Finished.</text>
+        <text>$End</text>
+        <group>
+            <subgroup>
+                <text hint-style="base">$ErrorCount errors</text>
+                <text hint-style="captionSubtle">$($Settings.Log.Path)$($Settings.DateTime).log</text>
+            </subgroup>
+        </group>
     </binding>  
 </visual>
 </toast>
@@ -345,10 +346,24 @@ function ConvertTo-WslPath
     (
         [String]$Path
     )
-    #wslpathと同様"D:"に対応できない
-    #return "$(($Path.Replace('\','/')) -replace '^([A-Z]):/(.*)',"/mnt/$($Path.Substring(0,1).ToLower())/`$2")"
-    #"D:"に対応
-    return [Regex]::Replace($Path, "^([A-Z]):(\\.*)?", { "/mnt/" + $args.Groups[1].Value.ToLower() + $args.Groups[2].Value.Replace('\','/')})
+    #wslpath -uが対応していないドライブレターのみ(例: "D:" -> "/mnt/d")に対応する正規表現
+    return [Regex]::Replace($Path, "^([A-Z]):(\\.*|/.*)?", { "/mnt/" + $args.Groups[1].Value.ToLower() + $args.Groups[2].Value.Replace('\','/')})
+    <#
+    #相対パス(例: "\AppData\Roaming" -> "/AppData/Roaming")にも対応
+    return [Regex]::Replace(
+        $Path,
+        "^([A-Z]|)(:|)(\\.*|/.*)?", #[0]([1]ドライブレターがあったりなかったり)([2]ドライブレター後のコロンがあったりなかったり)([3]バックスラッシュかスラッシュ後になんやかんや)
+        {
+            $(
+                switch ($args.Groups[1].Value)
+                {
+                    "" {""} #相対パス
+                    default {"/mnt/$($_.ToLower())"} #完全パス
+                }
+            ) + $args.Groups[3].Value.Replace('\','/') #残りのバックスラッシュをスラッシュへ置き換え
+        }
+    )
+    #>
 }
 
 function Invoke-Process
@@ -450,9 +465,8 @@ function Invoke-DiffBackup
 {
     param
     (
-        [String]$Execute,
         [String]$Src,
-        [String]$Clude,
+        [String]$rsyncArgument,
         [String]$Dst,
         [ScriptBlock]$Begin,
         [ScriptBlock]$End
@@ -468,10 +482,10 @@ function Invoke-DiffBackup
     {
         $Src = ConvertTo-WslPath -Path $Src
         $Dst = ConvertTo-WslPath -Path $Dst
-        Invoke-Process -File "wsl" -Arg "/usr/bin/rsync $Execute -av --delete --delete-excluded $Clude `"$Src`" `"$Dst`""
+        Invoke-Process -File "wsl" -Arg "/usr/bin/rsync $rsyncArgument `"$Src`" `"$Dst`""
     } elseif ($IsLinux)
     {
-        Invoke-Process -File "/bin/sh" -ArgList "-c", "/usr/bin/rsync $Execute -av --delete --delete-excluded $Clude '$Src' '$Dst'"
+        Invoke-Process -File "/bin/sh" -ArgList "-c", "/usr/bin/rsync $rsyncArgument '$Src' '$Dst'"
     }
     if ($End)
     {
@@ -485,7 +499,7 @@ function Invoke-IncrBackup
     (
         [String]$Link,
         [String]$Src,
-        [String]$Clude,
+        [String]$rsyncArgument,
         [String]$Dst,
         [ScriptBlock]$Begin,
         [ScriptBlock]$End
@@ -502,10 +516,10 @@ function Invoke-IncrBackup
         $Link = ConvertTo-WslPath -Path $Link
         $Src = ConvertTo-WslPath -Path $Src
         $Dst = ConvertTo-WslPath -Path $Dst
-        Invoke-Process -File "wsl" -Arg "/usr/bin/rsync -av --delete --delete-excluded $Clude --link-dest=`"$Link`" `"$Src`" `"$Dst`""
+        Invoke-Process -File "wsl" -Arg "/usr/bin/rsync $rsyncArgument --link-dest=`"$Link`" `"$Src`" `"$Dst`""
     } elseif ($IsLinux)
     {
-        Invoke-Process -File "/bin/sh" -ArgList "-c", "/usr/bin/rsync -av --delete --delete-excluded $Clude --link-dest='$Link' '$Src' '$Dst'"
+        Invoke-Process -File "/bin/sh" -ArgList "-c", "/usr/bin/rsync $rsyncArgument --link-dest='$Link' '$Src' '$Dst'"
     }
     if ($End)
     {
@@ -542,10 +556,10 @@ foreach ($line in (Get-Content -LiteralPath $PSCommandPath) -split "`n")
 
 "#--------------------ミラー--------------------"
 #ミラーリストの中から、最低限の設定項目があるもののみ実行
-$Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
+$Settings.MirList | Where-Object {$_.rsyncArgument -And $_.SrcPath -And $_.DstPath} | ForEach-Object {
 
     #ログ
-    $_ | Format-Table -Property *
+    $_ | Format-Table -Property * | Out-String -Width 4096
 
     #コピー先が無ければ新しいディレクトリの作成
     if (!(Test-Path "$($_.DstPath)"))
@@ -555,15 +569,15 @@ $Settings.MirList | Where-Object {$_.SrcPath -And $_.DstPath} | ForEach-Object {
     }
 
     #差分バックアップ
-    Invoke-DiffBackup -Execute "$($_.Execute)" -Clude "$($_.SrcClude)" -Src "$($_.SrcPath)" -Dst "$($_.DstPath)" -Begin $_.Begin -End $_.End
+    Invoke-DiffBackup -rsyncArgument "$($_.rsyncArgument)" -Src "$($_.SrcPath)" -Dst "$($_.DstPath)" -Begin $_.Begin -End $_.End
 }
 
 "#--------------------世代管理--------------------"
 #設定の不備がないディレクトリのみ実行
-$Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Object {
+$Settings.GenList | Where-Object {$_.rsyncArgument -And $_.SrcPath -And $_.DstParentPath} | ForEach-Object {
 
     #ログ
-    $_ | Format-Table -Property *
+    $_ | Format-Table -Property * | Out-String -Width 4096
 
     #DstGenTholdが設定されたディレクトリを処理する直前に世代管理ローテーションを行う
     #同じDstParentPathを持つディレクトリは、ここで作成されたディレクトリを使って世代管理される
@@ -613,10 +627,10 @@ $Settings.GenList | Where-Object {$_.SrcPath -And $_.DstParentPath} | ForEach-Ob
     if ($AllGen.Count -eq 0)
     {
         #世代数が0なので新しいディレクトリにフルバックアップ
-        Invoke-DiffBackup -Clude "$($_.SrcClude)" -Src "$($_.SrcPath)" -Dst "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)" -Begin $_.Begin -End $_.End
+        Invoke-DiffBackup -rsyncArgument "$($_.rsyncArgument)" -Src "$($_.SrcPath)" -Dst "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)" -Begin $_.Begin -End $_.End
     } else {
         #インクリメンタルバックアップ リンク先は新しい世代ディレクトリ作成前の最後尾
-        Invoke-IncrBackup -Clude "$($_.SrcClude)" -Link "$($_.DstParentPath)/$($AllGen | Select-Object -Last 1)$($_.DstChildPath)" -Src "$($_.SrcPath)" -Dst "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)" -Begin $_.Begin -End $_.End
+        Invoke-IncrBackup -rsyncArgument "$($_.rsyncArgument)" -Link "$($_.DstParentPath)/$($AllGen | Select-Object -Last 1)$($_.DstChildPath)" -Src "$($_.SrcPath)" -Dst "$($_.DstParentPath)$($Settings.DateTime)$($_.DstChildPath)" -Begin $_.Begin -End $_.End
     }
 }
 
