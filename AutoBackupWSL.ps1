@@ -376,6 +376,7 @@ function Invoke-Process
     )
 
     "DEBUG Invoke-Process`nFile: $File`nArg: $Arg`nArgList: $ArgList`n"
+    $InvokeProcessStart = Get-Date
 
     #cf. https://github.com/guitarrapc/PowerShellUtil/blob/master/Invoke-Process/Invoke-Process.ps1 
 
@@ -444,6 +445,7 @@ function Invoke-Process
     $errorSb.ToString().Trim()
     "DEBUG ExitCode: $($ps.ExitCode)"
     [Array]$script:ExitCode += $ps.ExitCode
+    "DEBUG Processing time: $(((Get-Date) - $InvokeProcessStart).TotalSeconds)"
 
     if ($Null -ne $process)
     {
