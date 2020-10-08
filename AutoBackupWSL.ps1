@@ -10,9 +10,9 @@ $Settings =
     Log =
     @{
         #ログ保存ディレクトリ
-        Path = 'C:\BackupLog'
+        Path = 'C:\logs\AutoBackupWSL'
         #ログローテの閾値
-        CntMax = 60
+        CntMax = 365
     }
     #通知に関する設定
     Post =
@@ -32,11 +32,11 @@ $Settings +=
     #ミラーバックアップリスト
     MirList =
     @(
+        #稼働中のMinecraftサーバのデータを安全にミラーする例
         [PSCustomObject]@{
             SrcPath = "minecraft@example.com:~/Servers"
-            SrcClude = "--exclude='Test1/world/' --exclude='Test2/world/'"
-            DstPath = "D:\RemoteServer"
-            Execute = "-e 'ssh -p 22 -o StrictHostKeyChecking=no -i ~/.ssh/remote_id_ed25519'"
+            rsyncArgument = "-avz --delete --delete-excluded --exclude='Test1/world/' --exclude='Test2/world/' -e 'ssh -p 22 -o StrictHostKeyChecking=no -i ~/.ssh/remote_id_ed25519' --bwlimit=1750"
+            DstPath = "D:\Mirror\RemoteServer"
             Begin =
             ({
                 #このディレクトリのバックアップ直前に行われる処理
@@ -52,51 +52,92 @@ $Settings +=
             ({
                 #このディレクトリのバックアップ直後に行われる処理
 
-                #Minecraftサーバのバックアップ前にsave-onを送る例
+                #Minecraftサーバのバックアップ後にsave-onを送る例
                 Invoke-Command -ScriptBlock ${function:Invoke-Process} -ArgumentList 'pwsh', "-File /home/minecraft/Servers/msl.ps1 -Name CBWSurvival -Action `"save-on`"" -HostName minecraft@example.com -Port 22 -KeyFilePath "$env:USERPROFILE/.ssh/remote_id_ed25519"
                 #リモートバックアップが終わったことを通知する例
-                Send-Webhook -Text "minecraft@example.com Remote backup is complete."
+                Send-Webhook -Text "minecraft@example.com Remote backup is complete." -WebhookUrl "https://discordapp.com/api/webhooks/ZZZZZZZZZZ"
             })
         }
+        #リモートサーバのアーカイブをミラーしつつ、変更があっても削除しない例
+        [PSCustomObject]@{
+            SrcPath = "minecraft@example.com:/mnt/backup/Archive"
+            rsyncArgument = "-avz -e 'ssh -p 22 -o StrictHostKeyChecking=no -i ~/.ssh/remote_id_ed25519' --bwlimit=1750" #deleteを同期しない
+            DstPath = "D:\Mirror\RemoteServer"
+        }
+        #WSL上のリポジトリルートディレクトリをミラーする例 WSL2ではWSL1に比べて数～十数倍遅いと思う https://github.com/microsoft/WSL/issues/4197
+        [PSCustomObject]@{
+            SrcPath = "/home/sbn/repos"
+            rsyncArgument = "-av --delete"
+            DstPath = "D:\Mirror\WSL"
+        }
+        #Windows状のリポジトリルートディレクトリをミラーする例 WSL2では/mnt/c/下ではマトモに開発できないと思う
+        [PSCustomObject]@{
+            SrcPath = "C:\repos"
+            rsyncArgument = "-av --delete"
+            DstPath = "D:\Mirror"
+        }
+        #タスクスケジューラの設定もバックアップ AutoBackupWSLもこれを使うと思うので
+        [PSCustomObject]@{
+            SrcPath = "C:\Windows\System32\Tasks"
+            rsyncArgument = "-av --delete --delete-excluded --exclude='*/'"
+            DstPath = "D:\Mirror\System32"
+        }
+        #HDDの片方向ミラー 冗長化は記憶域プールでやろう https://nyanshiba.com/blog/powershell-storagepool
         [PSCustomObject]@{
             SrcPath = "F:\"
+            rsyncArgument = "-av --delete"
             DstPath = "G:"
         }
     )
     #世代管理バックアップリスト
     GenList =
     @(
+        #リモートサーバからミラーしたものを世代管理
         [PSCustomObject]@{
-            SrcPath = "D:\RemoteServer"
-            DstParentPath = "D:"
-            DstGenExclude = 'RemoteServer','190819_070002'
-            DstGenThold = 30
+            SrcPath = "D:\Mirror\RemoteServer"
+            rsyncArgument = "-av --delete --delete-excluded --exclude='Archive/'" #この例では、リモートサーバのアーカイブは--deleteしていないので世代管理から除外できる
+            DstParentPath = "D:" #"D:\yyMMdd_HHmmss"に世代管理される
+            DstGenExclude = 'Mirror','190819_070002' #この例では"D:\Mirror"を使っているので世代参照・ローテートから除外する
+            DstGenThold = 30 #同じDstParentPathの中で最初に書けば良い この例では、30世代溜まるとインクリメンタル時に古い世代を使い回すので(ログが汚くなるが)更に速くなる
         }
+        #Minecraft Launcherの設定のみバックアップ
         [PSCustomObject]@{
             SrcPath = "$env:APPDATA\.minecraft"
-            SrcClude = "--exclude='assets/'"
+            rsyncArgument = "-av --delete --delete-excluded --include='*.*' --exclude='*/'"
+            DstParentPath = "D:"
+            DstChildPath = "\AppData\Roaming" #"D:\yyMMdd_HHmmss\AppData\Roaming"に世代管理される
+        }
+        #VSCodeのユーザ設定とUntitledのみ最低限バックアップ
+        [PSCustomObject]@{
+            SrcPath = "$env:APPDATA\Code"
+            rsyncArgument = "-av --delete --delete-excluded --include='*/' --include='Backups/***/untitled/***' --include='User/settings.json' --exclude='*'"
             DstParentPath = "D:"
             DstChildPath = "\AppData\Roaming"
         }
+        #Firefoxのユーザ設定とuserChrome.css関係のみバックアップ
         [PSCustomObject]@{
-            SrcPath = "$env:LOCALAPPDATA\TotalMixFX"
+            SrcPath = "$env:APPDATA\Mozilla\Firefox\Profiles"
+            rsyncArgument = "-av --delete --delete-excluded --include='*/' --include='*default-releas*/chrome/***' --include='*default-releas*/prefs.js' --include='*default-releas*/user.js' --exclude='*'"
             DstParentPath = "D:"
-            DstChildPath = "\AppData\Local"
+            DstChildPath = "\AppData\Roaming\Mozilla\Firefox\Profiles"
         }
+        #OBS Studioの最低限の設定のみバックアップ
         [PSCustomObject]@{
-            SrcPath = "C:\Windows\System32\Tasks"
-            SrcClude = "--exclude='*/*'"
+            SrcPath = "$env:APPDATA\obs-studio"
+            rsyncArgument = "-av --delete --delete-excluded --exclude='crashes/' --exclude='logs/' --exclude='plugin_config/'"
             DstParentPath = "D:"
-            DstChildPath = "\System32"
+            DstChildPath = "\AppData\Roaming"
         }
+        #ドキュメントのバックアップ
         [PSCustomObject]@{
             SrcPath = "$env:USERPROFILE\Documents"
-            SrcClude = "--exclude='My Music' --exclude='My Pictures' --exclude='My Videos'"
+            rsyncArgument = "-av --delete --delete-excluded --exclude='My Music' --exclude='My Pictures' --exclude='My Videos'"
             DstParentPath = "D:"
         }
+        #Minecraftのゲームディレクトリ、ローカルサーバを安全にバックアップ
         [PSCustomObject]@{
             SrcPath = "C:\Minecraft"
-            SrcClude = "--exclude='Spigot1/plugins/CoreProtect/database.db' --exclude='Spigot2/plugins/CoreProtect/database.db'"
+            rsyncArgument = "-av --delete --delete-excluded --exclude='Spigot1/plugins/CoreProtect/database.db' --exclude='Spigot2/plugins/CoreProtect/database.db'"
             DstParentPath = "D:"
             Begin =
             ({
@@ -112,11 +153,6 @@ $Settings +=
                     Invoke-Process -File "pwsh" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-on'"
                 }
             })
-        }
-        [PSCustomObject]@{
-            SrcPath = "C:\Rec"
-            SrcClude = "--exclude='ts/' --exclude='mp4/'"
-            DstParentPath = "D:"
         }
     )
     #後処理
