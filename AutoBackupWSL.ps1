@@ -60,8 +60,8 @@ $Settings +=
         }
         #リモートサーバのアーカイブをミラーしつつ、変更があっても削除しない例
         [PSCustomObject]@{
-            SrcPath = "minecraft@example.com:/mnt/backup/Archive"
-            rsyncArgument = "-avz -e 'ssh -p 22 -o StrictHostKeyChecking=no -i ~/.ssh/remote_id_ed25519' --bwlimit=1750" #deleteを同期しない
+            SrcPath = "example.com:/mnt/backup/Archive" #rsyncは.ssh/configを参照できる
+            rsyncArgument = "-avz --bwlimit=1750" #deleteを同期しない
             DstPath = "D:\Mirror\RemoteServer"
         }
         #WSL上のリポジトリルートディレクトリをミラーする例 WSL2ではWSL1に比べて数～十数倍遅いと思う https://github.com/microsoft/WSL/issues/4197
