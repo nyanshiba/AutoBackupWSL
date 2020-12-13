@@ -306,13 +306,39 @@ function Send-Webhook
 
 function Send-Toast
 {
-    #Windows PowershellでないPowershellのAppIDを取得
+    #PowershellのAppIDを取得
     $AppId = "$((Get-StartApps | Where-Object {$_.Name -match "PowerShell" -And $_.Name -notmatch "Windows"} | Select-Object -First 1).AppID)"
 
-    #ロード済み一覧:[System.AppDomain]::CurrentDomain.GetAssemblies() | % { $_.GetName().Name }
-    #WinRTAPIを呼び出す:[-Class-,-Namespace-,ContentType=WindowsRuntime]
-    $null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
-    $null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+    #PowerShell 7.1.0-preview.4~
+    #https://github.com/PowerShell/PowerShell/issues/13042#issuecomment-653357546
+    #https://github.com/Windos/BurntToast/blob/main/BurntToast/BurntToast.psm1
+    #https://github.com/Windos/BurntToast/blob/main/BurntToast/Public/Submit-BTNotification.ps1
+    if ($PSVersionTable.PSVersion -ge [System.Management.Automation.SemanticVersion] '7.1.0-preview.4')
+    {
+        Get-PackageProvider
+
+        try
+        {
+            Get-Package -Name Microsoft.Windows.SDK.NET.Ref -ErrorAction Stop
+        }
+        catch
+        {
+            Install-Package Microsoft.Windows.SDK.NET.Ref -Scope CurrentUser -Force
+        }
+        finally
+        {
+            $Library = (Get-Item (Get-Package -Name Microsoft.Windows.SDK.NET.Ref).Source).DirectoryName
+            Add-Type -AssemblyName "$Library\lib\Microsoft.Windows.SDK.NET.dll"
+            Add-Type -AssemblyName "$Library\lib\WinRT.Runtime.dll"
+        }
+    }
+    else
+    {
+        #ロード済み一覧:[System.AppDomain]::CurrentDomain.GetAssemblies() | % { $_.GetName().Name }
+        #WinRTAPIを呼び出す:[-Class-,-Namespace-,ContentType=WindowsRuntime]
+        $null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+        $null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+    }
 
     #XmlDocumentクラスをインスタンス化
     $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
