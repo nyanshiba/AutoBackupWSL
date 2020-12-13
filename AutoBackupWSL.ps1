@@ -315,14 +315,13 @@ function Send-Toast
     #https://github.com/Windos/BurntToast/blob/main/BurntToast/Public/Submit-BTNotification.ps1
     if ($PSVersionTable.PSVersion -ge [System.Management.Automation.SemanticVersion] '7.1.0-preview.4')
     {
-        Get-PackageProvider
-
         try
         {
             Get-Package -Name Microsoft.Windows.SDK.NET.Ref -ErrorAction Stop
         }
         catch
         {
+            Get-PackageProvider
             Install-Package Microsoft.Windows.SDK.NET.Ref -Scope CurrentUser -Force
         }
         finally
