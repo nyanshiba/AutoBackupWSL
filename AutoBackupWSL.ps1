@@ -167,14 +167,14 @@ $Settings +=
             ({
                 Get-Process | Where-Object {$_.MainWindowTitle -in "Survival1","Spigot1","Spigot2"} | ForEach-Object {
                     # Minecraft Server Launcer https://gist.github.com/nyanshiba/deed14b985acfb203c519746d6cea857
-                    Invoke-Process -File "pwsh" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-off'"
-                    Invoke-Process -File "pwsh" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-all flush'"
+                    Invoke-Process -FileName "pwsh" -Arguments "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-off'"
+                    Invoke-Process -FileName "pwsh" -Arguments "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-all flush'"
                 }
             })
             End =
             ({
                 Get-Process | Where-Object {$_.MainWindowTitle -in "Survival1","Spigot1","Spigot2"} | ForEach-Object {
-                    Invoke-Process -File "pwsh" -Arg "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-on'"
+                    Invoke-Process -FileName "pwsh" -Arguments "-File 'C:\bin\msl.ps1' -Name $_ -Action 'save-on'"
                 }
             })
         }
@@ -453,15 +453,17 @@ function ConvertTo-WslPath
 
 function Invoke-Process
 {
-    param
-    (
-        [String]$File,
-        [String]$Arg,
-        [String[]]$ArgList
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [String]
+        $FileName = 'powershell.exe',
+        [String]
+        $Arguments = 'ls',
+        [String[]]
+        $ArgumentList
     )
-
-    "DEBUG Invoke-Process`nFile: $File`nArg: $Arg`nArgList: $ArgList`n"
-    $InvokeProcessStart = Get-Date
+    Write-Host "DEBUG Invoke-Process`nFile: $FileName`nArguments: $Arguments`nArgumentList: $ArgumentList`n"
 
     #cf. https://github.com/guitarrapc/PowerShellUtil/blob/master/Invoke-Process/Invoke-Process.ps1 
 
@@ -472,15 +474,16 @@ function Invoke-Process
     $ps.StartInfo.RedirectStandardOutput = $True
     $ps.StartInfo.RedirectStandardError = $True
     $ps.StartInfo.CreateNoWindow = $True
-    $ps.StartInfo.Filename = $File
-    if ($Arg)
+    $ps.StartInfo.Filename = $FileName
+    if ($Arguments)
     {
-        #Windows
-        $ps.StartInfo.Arguments = $Arg
-    } elseif ($ArgList)
+        # Windows
+        $ps.StartInfo.Arguments = $Arguments
+    }
+    elseif ($ArgumentList)
     {
-        #Linux
-        $ArgList | ForEach-Object {
+        # Linux
+        $ArgumentList | ForEach-Object {
             $ps.StartInfo.ArgumentList.Add("$_")
         }
     }
@@ -490,23 +493,18 @@ function Invoke-Process
     $errorSb = New-Object -TypeName System.Text.StringBuilder
     $scripBlock = 
     {
-        <#$x = $Event.SourceEventArgs.Data
+        $x = $Event.SourceEventArgs.Data
         if (-not [String]::IsNullOrEmpty($x))
         {
             [System.Console]::WriteLine($x)
             $Event.MessageData.AppendLine($x)
-        }#>
-        if (-not [String]::IsNullOrEmpty($EventArgs.Data))
-        {
-                    
-            $Event.MessageData.AppendLine($Event.SourceEventArgs.Data)
         }
     }
     $stdEvent = Register-ObjectEvent -InputObject $ps -EventName OutputDataReceived -Action $scripBlock -MessageData $stdSb
     $errorEvent = Register-ObjectEvent -InputObject $ps -EventName ErrorDataReceived -Action $scripBlock -MessageData $errorSb
 
     # execution
-    $Null = $ps.Start()
+    $ps.Start() > $Null
     $ps.BeginOutputReadLine()
     $ps.BeginErrorReadLine()
 
@@ -526,11 +524,12 @@ function Invoke-Process
     $stdEvent, $errorEvent | Out-String -Stream | Write-Verbose
 
     # Get Process result
-    $stdSb.ToString().Trim()
-    $errorSb.ToString().Trim()
-    "DEBUG ExitCode: $($ps.ExitCode)"
-    [Array]$script:ExitCode += $ps.ExitCode
-    "DEBUG Processing time: $(((Get-Date) - $InvokeProcessStart).TotalSeconds)"
+    return [PSCustomObject]@{
+        StartTime = $ps.StartTime
+        StandardOutput = $stdSb.ToString().Trim()
+        ErrorOutput = $errorSb.ToString().Trim()
+        ExitCode = $ps.ExitCode
+    }
 
     if ($Null -ne $process)
     {
@@ -559,21 +558,27 @@ function Invoke-DiffBackup
         [ScriptBlock]$End
     )
 
-    "DEBUG Invoke-DiffBackup"
+    Write-Host "DEBUG Invoke-DiffBackup"
 
     if ($Begin)
     {
         Invoke-Command -ScriptBlock $Begin
     }
+
     if ($IsWindows)
     {
         $Src = ConvertTo-WslPath -Path $Src
         $Dst = ConvertTo-WslPath -Path $Dst
-        Invoke-Process -File "wsl" -Arg "/usr/bin/rsync $rsyncArgument `"$Src`" `"$Dst`""
-    } elseif ($IsLinux)
-    {
-        Invoke-Process -File "/bin/sh" -ArgList "-c", "/usr/bin/rsync $rsyncArgument '$Src' '$Dst'"
+        $Process = Invoke-Process -FileName "wsl" -Arguments "/usr/bin/rsync $rsyncArgument `"$Src`" `"$Dst`""
     }
+    elseif ($IsLinux)
+    {
+        $Process = Invoke-Process -FileName "/bin/sh" -ArgumentList "-c", "/usr/bin/rsync $rsyncArgument '$Src' '$Dst'"
+    }
+
+    [Array]$script:ExitCode += $Process.ExitCode
+    $Process | Format-List -Property *
+    
     if ($End)
     {
         Invoke-Command -ScriptBlock $End
@@ -592,22 +597,28 @@ function Invoke-IncrBackup
         [ScriptBlock]$End
     )
 
-    "DEBUG Invoke-IncrBackup"
+    Write-Host "DEBUG Invoke-IncrBackup"
 
     if ($Begin)
     {
         Invoke-Command -ScriptBlock $Begin
     }
+
     if ($IsWindows)
     {
         $Link = ConvertTo-WslPath -Path $Link
         $Src = ConvertTo-WslPath -Path $Src
         $Dst = ConvertTo-WslPath -Path $Dst
-        Invoke-Process -File "wsl" -Arg "/usr/bin/rsync $rsyncArgument --link-dest=`"$Link`" `"$Src`" `"$Dst`""
-    } elseif ($IsLinux)
-    {
-        Invoke-Process -File "/bin/sh" -ArgList "-c", "/usr/bin/rsync $rsyncArgument --link-dest='$Link' '$Src' '$Dst'"
+        $Process = Invoke-Process -FileName "wsl" -Arguments "/usr/bin/rsync $rsyncArgument --link-dest=`"$Link`" `"$Src`" `"$Dst`""
     }
+    elseif ($IsLinux)
+    {
+        $Process = Invoke-Process -FileName "/bin/sh" -ArgumentList "-c", "/usr/bin/rsync $rsyncArgument --link-dest='$Link' '$Src' '$Dst'"
+    }
+
+    [Array]$script:ExitCode += $Process.ExitCode
+    $Process | Format-List -Property *
+
     if ($End)
     {
         Invoke-Command -ScriptBlock $End
