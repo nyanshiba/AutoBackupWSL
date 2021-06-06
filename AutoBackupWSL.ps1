@@ -64,6 +64,22 @@ $Settings +=
             rsyncArgument = "-avz --bwlimit=1750" #deleteを同期しない
             DstPath = "D:\Mirror\RemoteServer"
         }
+        #Xperia 1 ii(Android 11端末)のTermuxのsshdに接続してリモートバックアップ
+        [PSCustomObject]@{
+            SrcPath = "12:~/storage/dcim"
+            rsyncArgument = "-avz --copy-links"
+            DstPath = "E:\Xperia1ii"
+        }
+        [PSCustomObject]@{
+            SrcPath = "12:~/storage/pictures"
+            rsyncArgument = "-avz --copy-links --exclude='.thumbnails/' --exclude='Twitter/' --exclude='Instagram/'"
+            DstPath = "E:\Xperia1ii"
+        }
+        [PSCustomObject]@{
+            SrcPath = "12:~/storage/movies"
+            rsyncArgument = "-avz --copy-links"
+            DstPath = "E:\Xperia1ii"
+        }
         #WSL上のホームディレクトリをミラーする例
         [PSCustomObject]@{
             SrcPath = "/home/sbn/"
