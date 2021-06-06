@@ -82,6 +82,13 @@ $Settings +=
             rsyncArgument = "-av --delete --delete-excluded --exclude='*/'"
             DstPath = "D:\Mirror\System32"
         }
+        #手動インストールした実行ファイル群をバックアップ
+        [PSCustomObject]@{
+            SrcPath = "C:\bin"
+            #JDKやJREを除外
+            rsyncArgument = "-av --delete --delete-excluded --exclude='*jdk*/' --exclude='*jre*/' --include='*/'"
+            DstPath = "E:"
+        }
         #HDDの片方向ミラー 冗長化は記憶域プールでやろう https://nyanshiba.com/blog/powershell-storagepool
         [PSCustomObject]@{
             SrcPath = "F:\"
