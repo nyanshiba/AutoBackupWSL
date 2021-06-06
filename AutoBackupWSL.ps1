@@ -64,17 +64,18 @@ $Settings +=
             rsyncArgument = "-avz --bwlimit=1750" #deleteを同期しない
             DstPath = "D:\Mirror\RemoteServer"
         }
-        #WSL上のリポジトリルートディレクトリをミラーする例 WSL2ではWSL1に比べて数～十数倍遅いと思う https://github.com/microsoft/WSL/issues/4197
+        #WSL上のホームディレクトリをミラーする例
         [PSCustomObject]@{
-            SrcPath = "/home/sbn/repos"
-            rsyncArgument = "-av --delete"
-            DstPath = "D:\Mirror\WSL"
+            SrcPath = "/home/sbn/"
+            rsyncArgument = "-a --delete --delete-excluded --exclude='.npm/' --include='*/' --include='.bashrc' --include='.gitconfig' --include='.ssh/***' --exclude='*'"
+            DstPath = "E:\fedora34-dev"
         }
-        #Windows状のリポジトリルートディレクトリをミラーする例 WSL2では/mnt/c/下ではマトモに開発できないと思う
+        #/mnt/c/下のリポジトリルートディレクトリをミラーする例 WSL2はWSL1に比べて数～十数倍遅いので、AutoBackupWSLでは非推奨 https://github.com/microsoft/WSL/issues/4197
         [PSCustomObject]@{
             SrcPath = "C:\repos"
-            rsyncArgument = "-av --delete"
-            DstPath = "D:\Mirror"
+            # FFmpegやOBSのビルド関係を除外
+            rsyncArgument = "-a -delete --delete-excluded --exclude='dependencies2019/' --exclude='cef_binary*/' --exclude='obs-studio/' --exclude='nv-codec-headers/' --exclude='node_modules/' --include='media-autobuild_suite/build/media-autobuild_suite.ini' --include='media-autobuild_suite/local64/bin-*/***' --exclude='media-autobuild_suite/***'"
+            DstPath = "E:"
         }
         #タスクスケジューラの設定もバックアップ AutoBackupWSLもこれを使うと思うので
         [PSCustomObject]@{
