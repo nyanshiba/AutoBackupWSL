@@ -604,9 +604,9 @@ $Start = "$((Get-Date).ToString("yyyy-MM-dd (ddd) HH:mm:ss"))"
 Start-Transcript -LiteralPath "$($Settings.Log.Path)$($Settings.DateTime).log"
 
 "#--------------------ログローテ--------------------"
-#古いログの削除
+# 古いログの削除
 Get-ChildItem -LiteralPath "$($Settings.Log.Path)/" -Include *.txt,*.log | Sort-Object LastWriteTime -Descending | Select-Object -Skip $Settings.Log.CntMax | ForEach-Object {
-    Remove-Item -LiteralPath "$_"
+    Remove-Item -LiteralPath $_.FullName
     "INFO Remove-Item: $_"
 }
 
