@@ -134,7 +134,7 @@ $Settings +=
         #VSCodeのユーザ設定とUntitledのみ最低限バックアップ
         [PSCustomObject]@{
             SrcPath = "$env:APPDATA\Code"
-            rsyncArgument = "-av --delete --delete-excluded --include='*/' --include='Backups/***/untitled/***' --include='User/settings.json' --include='User/keybindings.json' --exclude='*'"
+            rsyncArgument = "-av --delete --delete-excluded --include='*/' --include='Backups/workspaces.json' --include='Backups/***/untitled/***' --include='User/settings.json' --include='User/keybindings.json' --include='User/workspaceStorage/***/***' --exclude='*'"
             DstParentPath = "D:"
             DstChildPath = "\AppData\Roaming"
         }
