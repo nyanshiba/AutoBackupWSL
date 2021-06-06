@@ -152,10 +152,10 @@ $Settings +=
             DstParentPath = "D:"
             DstChildPath = "\AppData\Roaming"
         }
-        #Firefoxの設定(ブックマーク, タブ, コンテナ, Cookie, 拡張機能リスト, ファビコン, パスワード, about:config)をバックアップ
+        #Firefoxの設定(ブックマーク, タブ, コンテナ, Cookie, 拡張機能リスト, ファビコン, パスワード, Cookieの例外, about:config)をバックアップ
         [PSCustomObject]@{
             SrcPath = "$env:APPDATA\Mozilla\Firefox\Profiles"
-            rsyncArgument = "-av --delete --delete-excluded --include='*/' --include='*default/bookmarkbackups/***' --include='*default/sessionstore-backups/***' --include='*default/containers.json' --include='*default/cookies.sqlite' --include='*default/extensions.json' --include='*default/favicons.sqlite' --include='*default/key4.db' --include='*default/logins.json' --include='*default/prefs.js' --include='*default/sessionstore.jsonlz4' --exclude='*'"
+            rsyncArgument = "-av --delete --delete-excluded --exclude='storage/' --include='*/' --include='*default/bookmarkbackups/***' --include='*default/sessionstore-backups/***' --include='*default/containers.json' --include='*default/cookies.sqlite' --include='*default/extensions.json' --include='*default/favicons.sqlite' --include='*default/key4.db' --include='*default/logins.json' --include='*default/permissions.sqlite'--include='*default/prefs.js' --include='*default/sessionstore.jsonlz4' --exclude='*'"
             DstParentPath = "D:"
             DstChildPath = "\AppData\Roaming\Mozilla\Firefox\Profiles"
         }
