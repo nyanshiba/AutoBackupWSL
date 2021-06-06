@@ -138,13 +138,6 @@ $Settings +=
             DstParentPath = "D:"
             DstChildPath = "\AppData\Roaming"
         }
-        #Firefoxのユーザ設定とuserChrome.css関係のみバックアップ
-        [PSCustomObject]@{
-            SrcPath = "$env:APPDATA\Mozilla\Firefox\Profiles"
-            rsyncArgument = "-av --delete --delete-excluded --include='*/' --include='*default-releas*/chrome/***' --include='*default-releas*/prefs.js' --include='*default-releas*/user.js' --exclude='*'"
-            DstParentPath = "D:"
-            DstChildPath = "\AppData\Roaming\Mozilla\Firefox\Profiles"
-        }
         #OBS Studioの最低限の設定のみバックアップ
         [PSCustomObject]@{
             SrcPath = "$env:APPDATA\obs-studio"
