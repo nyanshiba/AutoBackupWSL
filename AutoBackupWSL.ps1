@@ -64,16 +64,27 @@ $Settings +=
             rsyncArgument = "-avz --bwlimit=1750" #deleteを同期しない
             DstPath = "D:\Mirror\RemoteServer"
         }
-        #Xperia 1 ii(Android 11端末)のTermuxのsshdに接続してリモートバックアップ
+        #Xperia 1 II(Android 11端末)のTermuxのsshdに接続してリモートバックアップ
         [PSCustomObject]@{
             SrcPath = "12:~/storage/dcim"
-            rsyncArgument = "-avz --copy-links"
+            rsyncArgument = "-avz --copy-links" # https://wiki.termux.com/wiki/Termux-setup-storage
             DstPath = "E:\Xperia1ii"
         }
         [PSCustomObject]@{
             SrcPath = "12:~/storage/pictures"
-            rsyncArgument = "-avz --copy-links --exclude='.thumbnails/' --exclude='Twitter/' --exclude='Instagram/'"
+            rsyncArgument = "-avz --update --copy-links --exclude='.thumbnails/' --exclude='Twitter/' --exclude='Instagram/'" # --updateでEndの処理内容を再度上書きしないように
             DstPath = "E:\Xperia1ii"
+            End =
+            {
+                # Android版LightroomはICCプロファイルを埋め込まないので、バックアップのログを見て差分でLightroomで書き出されたjpgにDisplay P3のICCを埋め込む
+                $Process.StandardOutput -split '\r?\n' | Select-String -Pattern "pictures/AdobeLightroom/.+.jpg" | ForEach-Object {
+                    Write-Host $_
+                    $img = "E:\Xperia1ii\" + $_ -replace '/','\'
+                    magick.exe identify -format "%[profiles]\n" $img
+                    magick.exe convert $img -profile E:\Xperia1ii\DisplayP3.icc $img
+                    magick.exe identify -format "%[profiles]\n" $img
+                }
+            }
         }
         [PSCustomObject]@{
             SrcPath = "12:~/storage/movies"
