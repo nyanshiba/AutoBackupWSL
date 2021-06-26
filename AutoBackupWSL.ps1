@@ -66,17 +66,17 @@ $Settings +=
         }
         #Xperia 1 II(Android 11端末)のTermuxのsshdに接続してリモートバックアップ
         [PSCustomObject]@{
-            SrcPath = "12:~/storage/dcim"
-            rsyncArgument = "-avz --copy-links" # https://wiki.termux.com/wiki/Termux-setup-storage
+            SrcPath = "12:/storage/emulated/0/DCIM"
+            rsyncArgument = "-avz --copy-links" # Android<=10は https://wiki.termux.com/wiki/Termux-setup-storage
             DstPath = "E:\Xperia1ii"
         }
         [PSCustomObject]@{
-            SrcPath = "12:~/storage/pictures"
+            SrcPath = "12:/storage/emulated/0/Pictures"
             rsyncArgument = "-avz --update --copy-links --exclude='.thumbnails/' --exclude='Twitter/' --exclude='Instagram/'" # --updateでEndの処理内容を再度上書きしないように
             DstPath = "E:\Xperia1ii"
             End =
             {
-                # Android版LightroomはICCプロファイルを埋め込まないので、バックアップのログを見て差分でLightroomで書き出されたjpgにDisplay P3のICCを埋め込む
+                # Android版LightroomはICCプロファイルを埋め込まないので、バックアップログを見てLightroomで書き出されたjpgにDisplay P3のICCを埋め込む例
                 $Process.StandardOutput -split '\r?\n' | Select-String -Pattern "pictures/AdobeLightroom/.+.jpg" | ForEach-Object {
                     Write-Host $_
                     $img = "E:\Xperia1ii\" + $_ -replace '/','\'
@@ -87,7 +87,7 @@ $Settings +=
             }
         }
         [PSCustomObject]@{
-            SrcPath = "12:~/storage/movies"
+            SrcPath = "12:/storage/emulated/0/Movies"
             rsyncArgument = "-avz --copy-links"
             DstPath = "E:\Xperia1ii"
         }
