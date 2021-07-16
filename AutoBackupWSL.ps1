@@ -163,6 +163,13 @@ $Settings +=
             DstParentPath = "D:"
             DstChildPath = "\AppData\Roaming\Mozilla\Firefox"
         }
+        #Logicool Optionsの感度・キー割り当て設定
+        [PSCustomObject]@{
+            SrcPath = "$env:APPDATA\Logishrd\LogiOptions\devices"
+            rsyncArgument = "-av --delete --delete-excluded --include='*/' --include='***/***.xml' --exclude='*'"
+            DstParentPath = "D:"
+            DstChildPath = "\AppData\Roaming\Logishrd\LogiOptions"
+        }
         #ドキュメントのバックアップ
         [PSCustomObject]@{
             SrcPath = "$env:USERPROFILE\Documents"
