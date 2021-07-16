@@ -173,13 +173,13 @@ $Settings +=
         #ドキュメントのバックアップ
         [PSCustomObject]@{
             SrcPath = "$env:USERPROFILE\Documents"
-            rsyncArgument = "-av --delete --delete-excluded --exclude='My Music' --exclude='My Pictures' --exclude='My Videos'"
+            rsyncArgument = "-av --no-links --delete --delete-excluded --exclude='My Music' --exclude='My Pictures' --exclude='My Videos'"
             DstParentPath = "D:"
         }
         #Minecraftのゲームディレクトリ、ローカルサーバを安全にバックアップ
         [PSCustomObject]@{
             SrcPath = "C:\Minecraft"
-            rsyncArgument = "-av --delete --delete-excluded --exclude='Spigot1/plugins/CoreProtect/database.db' --exclude='Spigot2/plugins/CoreProtect/database.db'"
+            rsyncArgument = "-av --no-links --delete --delete-excluded --exclude='Spigot1/plugins/CoreProtect/database.db' --exclude='Spigot2/plugins/CoreProtect/database.db'"
             DstParentPath = "D:"
             Begin =
             ({
