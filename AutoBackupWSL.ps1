@@ -67,7 +67,7 @@ $Settings +=
         #Xperia 1 II(Android 11端末)のTermuxのsshdに接続してリモートバックアップ
         [PSCustomObject]@{
             SrcPath = "12:/storage/emulated/0/DCIM"
-            rsyncArgument = "-avz --copy-links" # Android<=10は https://wiki.termux.com/wiki/Termux-setup-storage
+            rsyncArgument = "-avz --copy-links --exclude='.trashed-*'" # Android<=10は https://wiki.termux.com/wiki/Termux-setup-storage
             DstPath = "E:\Xperia1ii"
         }
         [PSCustomObject]@{
