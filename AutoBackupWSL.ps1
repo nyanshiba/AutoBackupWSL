@@ -475,13 +475,23 @@ function Invoke-Process
     param (
         [Parameter()]
         [String]
-        $FileName = 'powershell.exe',
+        $FileName,
         [String]
-        $Arguments = 'ls',
+        $Arguments,
         [String[]]
         $ArgumentList
     )
     Write-Host "DEBUG Invoke-Process`nFile: $FileName`nArguments: $Arguments`nArgumentList: $ArgumentList`n"
+    
+    if ([String]::IsNullOrEmpty($FileName) -And ([String]::IsNullOrEmpty($Arguments) -Or [String]::IsNullOrEmpty($ArgumentList)))
+    {
+        return [PSCustomObject]@{
+            StartTime = Get-Date
+            StandardOutput = ""
+            ErrorOutput = "Invoke-Process: 引数の指定が間違っています"
+            ExitCode = 1
+        }
+    }
 
     #cf. https://github.com/guitarrapc/PowerShellUtil/blob/master/Invoke-Process/Invoke-Process.ps1 
 
@@ -493,14 +503,12 @@ function Invoke-Process
     $ps.StartInfo.RedirectStandardError = $True
     $ps.StartInfo.CreateNoWindow = $True
     $ps.StartInfo.Filename = $FileName
-    if ($Arguments)
+    if ($IsWindows)
     {
-        # Windows
         $ps.StartInfo.Arguments = $Arguments
     }
-    elseif ($ArgumentList)
+    elseif ($IsLinux)
     {
-        # Linux
         $ArgumentList | ForEach-Object {
             $ps.StartInfo.ArgumentList.Add("$_")
         }
