@@ -348,6 +348,12 @@ function Send-Webhook
 
 function Send-Toast
 {
+    # Windows以外はお帰り下さい
+    if (!$IsWindows)
+    {
+        return "Send-Toast: This function only supports Windows."
+    }
+    
     #PowershellのAppIDを取得
     $AppId = "$((Get-StartApps | Where-Object {$_.Name -match "PowerShell" -And $_.Name -notmatch "Windows"} | Select-Object -First 1).AppID)"
 
@@ -363,7 +369,24 @@ function Send-Toast
         }
         catch
         {
-            Get-PackageProvider
+            # NuGetの登録が必要か確認して、トーストに必要なパッケージをインストールする
+            try
+            {
+                # Get-PackageProviderにはNuGetがあるが、Get-PackageSourceにはない
+                Get-PackageSource -ProviderName NuGet -ErrorAction Stop -WarningAction Stop
+            }
+            catch [System.Management.Automation.ActionPreferenceStopException] # $_.Exception.GetType().FullName
+            {
+                Write-Host "DEBUG Get-PackageSource: NuGet not found. So run Register-PackageSource."
+
+                # NuGetを登録
+                # このスクリプトの実行環境は [Net.ServicePointManager]::SecurityProtocol = Tls12 or SystemDefault なので関係ないし、 Install-Module や Install-PackageProvider はうまくいかない
+                # https://github.com/PowerShell/PowerShellGetv2/issues/599
+                # https://docs.microsoft.com/en-us/powershell/module/packagemanagement/register-packagesource#example-1--register-a-package-source-for-the-nuget-provider
+                Register-PackageSource -Name MyNuGet -Location https://www.nuget.org/api/v2 -ProviderName NuGet -ErrorAction Stop
+            }
+            
+            # Install-Package: No match was found for the specified search criteria and package name 'Microsoft.Windows.SDK.NET.Ref'. Try Get-PackageSource to see all available registered package sources.
             Install-Package Microsoft.Windows.SDK.NET.Ref -Scope CurrentUser -Force
         }
         finally
