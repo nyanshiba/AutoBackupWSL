@@ -93,7 +93,7 @@ $Settings +=
         }
         [PSCustomObject]@{
             SrcPath = "12:/storage/emulated/0/Movies"
-            rsyncArgument = "-avz --copy-links"
+            rsyncArgument = "-avz --copy-links --exclude='.thumbnails'"
             DstPath = "E:\Xperia1ii"
         }
         #WSL上のホームディレクトリをミラーする例
