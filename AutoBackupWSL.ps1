@@ -87,6 +87,11 @@ $Settings +=
             }
         }
         [PSCustomObject]@{
+            SrcPath = "E:\Xperia1ii\pictures\AdobeLightroom\"
+            rsyncArgument = "-avz --delete"
+            DstPath = "12:/storage/emulated/0/Pictures/AdobeLightroom/" # SELinuxに阻まれる？ので、Lightroomより先にTermuxでmkdirすること
+        }
+        [PSCustomObject]@{
             SrcPath = "12:/storage/emulated/0/Movies"
             rsyncArgument = "-avz --copy-links"
             DstPath = "E:\Xperia1ii"
