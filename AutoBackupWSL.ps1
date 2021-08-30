@@ -72,7 +72,7 @@ $Settings +=
         }
         [PSCustomObject]@{
             SrcPath = "12:/storage/emulated/0/Pictures"
-            rsyncArgument = "-avz --update --copy-links --exclude='.thumbnails/' --exclude='Twitter/' --exclude='Instagram/'" # --updateでEndの処理内容を再度上書きしないように
+            rsyncArgument = "-avz --update --copy-links --include='*/' --include='AdobeLightroom/***' --include='PhotosEditor/***' --include='Screenshots/***' --exclude='*'" # --updateでEndの処理内容を再度上書きしないように
             DstPath = "E:\Xperia1ii"
             End =
             {
