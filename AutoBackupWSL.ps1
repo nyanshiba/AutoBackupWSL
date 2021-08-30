@@ -81,7 +81,7 @@ $Settings +=
                     Write-Host $_
                     $img = "E:\Xperia1ii\" + $_ -replace '/','\'
                     magick.exe identify -format "%[profiles]\n" $img
-                    magick.exe convert $img -profile E:\Xperia1ii\DisplayP3.icc $img
+                    $null = magick.exe convert $img -profile E:\Xperia1ii\DisplayP3.icc $img
                     magick.exe identify -format "%[profiles]\n" $img
                 }
             }
