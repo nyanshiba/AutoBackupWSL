@@ -168,6 +168,153 @@ $Settings +=
             rsyncArgument = "-av --delete --delete-excluded --exclude='storage/' --include='*/' --include='*default/bookmarkbackups/***' --include='*default/sessionstore-backups/***' --include='*default/containers.json' --include='*default/cookies.sqlite' --include='*default/extensions.json' --include='*default/favicons.sqlite' --include='*default/key4.db' --include='*default/logins.json' --include='*default/permissions.sqlite'--include='*default/prefs.js' --include='*default/sessionstore.jsonlz4' --exclude='*'"
             DstParentPath = "D:"
             DstChildPath = "\AppData\Roaming\Mozilla\Firefox"
+            Begin =
+            {
+                # $Src = "$env:APPDATA\Mozilla\Firefox\Profiles"
+                # sessionstore.jsonlz4を編集してFirefoxのタブを整理
+                Get-ChildItem -Path $Src -Filter sessionstore.jsonlz4 -Recurse -Depth 1 | Where-Object FullName -match "default" | Select-Object -Index 0 | ForEach-Object {
+
+                    # avih/dejsonlz4 で sessionstore.jsonlz4(mozlz4) -> sessionstore.json
+                    $script:wslJsonlz4Path = ConvertTo-WslPath -Path $_.FullName
+                    $script:wslJsonPath = ConvertTo-WslPath -Path "$($_.DirectoryName)/sessionstore.json"
+                    $script:winJsonlz4Parent = $_.DirectoryName
+                    <#
+                      git clone https://github.com/avih/dejsonlz4.git -o upstream
+                      sudo dnf install lz4-devel gcc make -y
+                      gcc -Wall -o dejsonlz4 src/dejsonlz4.c src/lz4.c
+                      gcc -Wall -o jsonlz4 src/ref_compress/jsonlz4.c src/lz4.c
+                    #>
+                    wsl.exe -- /mnt/c/repos/dejsonlz4/dejsonlz4 $wslJsonlz4Path $wslJsonPath
+                    # sesseionstore.json -> [PSCustomObject]
+                    $script:sessionstore = Get-Content "$($_.DirectoryName)/sessionstore.json" | ConvertFrom-Json #-AsHashtable
+                    # タブの数
+                    Write-Host ("INFO sessionstore.jsonlz4: " + $sessionstore.windows.tabs.Count + " Tabs")
+
+                    # 面倒なので複数ウィンドウを考慮しない
+                    if ($sessionstore.windows.Count -le 1)
+                    {
+                        # ConvertFrom-Jsonで生成されたPSCustomObject内のSystem.Array内の配列を削除できるように、一旦ArrayListをつくって
+                        [System.Collections.ArrayList]$tabsArrayList = $sessionstore.windows.tabs
+
+                        # YouTubeのタブを整理
+                        # 最後に選択したタブのIndex browser.sessionstore.max_serialize_back/forward: 0されている前提!!
+                        $selectedTabUrl = $tabsArrayList.entries.url[$sessionstore.windows.selected - 1]
+
+                        # YouTubeのタブを退避
+                        [System.Collections.ArrayList]$tabsYouTubeList = $tabsArrayList | Where-Object {$_.entries.url -like "https://www.youtube.com/*"}
+                        Write-Host "DEBUG sessionstore.jsonlz4: $($tabsYouTubeList.Count) YouTube Tabs"
+
+                        # YouTubeのタブをタブ一覧から削除
+                        $tabsArrayList = $tabsArrayList | Where-Object {$_.entries.url -notlike "https://www.youtube.com/*"}
+                        # 最後に選択したタブの左隣$sessionstore.windows.selectedへ挿入
+                        try
+                        {
+                            $tabsArrayList.InsertRange($tabsArrayList.entries.url.IndexOf($selectedTabUrl), $tabsYouTubeList)
+                        }
+                        catch
+                        {
+                            # YouTubeのタブを選択した状態で終了すると、挿入するIndexが-1になってしまうので
+                            $tabsArrayList.InsertRange(0, $tabsYouTubeList)
+                        }
+                        # タブの数
+                        Write-Host ("DEBUG sessionstore.jsonlz4: " + $tabsArrayList.Count + " Tabs")
+
+                        # 最後に選択したタブを更新
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'selected' -Value ($tabsArrayList.entries.url.IndexOf($selectedTabUrl + 1)) -Force
+
+                        # 削除リスト
+                        [string]$deleteEntriesUrlMatchList =
+                        @(
+                            'twitter.com/home'
+                            'twitter.com/search'
+                            'twitter.com/explore'
+                            'twitter.com/notifications'
+                            'twitter.com/messages'
+                            'twitter.com/i/'
+                            'twitter.com/shibanyan_1'
+                            'twitter.com/settings'
+                            'nyanshiba'
+                            'http://localhost'
+                            'http://192.168'
+                        ) -join "|"
+
+                        foreach ($tab in $($tabsArrayList.Clone()))
+                        {
+                            # 削除リストに一致したエントリを最後に持つタブ
+                            # sessionstoreでは、ブラウザバックと開いているタブの区別がつかないので、browser.sessionstore.max_serialize_back/forward: 0されている前提!!
+                            if ($tab.entries[($tab.entries.length - 1)].url -match $deleteEntriesUrlMatchList)
+                            {
+                                Write-Host "DEBUG sessionstore.jsonlz4: Delete Tab `"$($tab.entries[($tab.entries.length - 1)].url)`""
+                                # タブを削除
+                                $tabsArrayList.Remove($tab)
+                            }
+                            # tabs.entries.children要らない https://wiki.mozilla.org/Firefox/session_restore#The_structure_of_sessionstore.js
+                            else
+                            {
+                                for ($i = 0; $i -le ($tab.entries.length - 1); $i++)
+                                {
+                                    if ($tab.entries[$i].children)
+                                    {
+                                        Write-Host "DEBUG sessionstore.jsonlz4: Delete `"$($tab.entries[$i].url)`" children `"$($tab.entries[$i].children.url)`""
+                                        $tab.entries[$i].PSObject.Properties.Remove('children')
+                                    }
+                                }
+                            }
+                        }
+
+                        # タブの数
+                        Write-Host ("DEBUG sessionstore.jsonlz4: " + $tabsArrayList.Count + " Tabs")
+
+                        # https://www-example-com.translate.goog/* -> https://www.example.com/*
+
+                        # 重複タブの削除
+                        $previoustab =
+                        @{
+                            entries =
+                            @{
+                                url = $False
+                            }
+                        }
+                        foreach ($tab in ($tabsArrayList | Sort-Object -Property {$_.entries.url}))
+                        {
+                            if ($tab.entries.url -eq $previoustab.entries.url)
+                            {
+                                "DEBUG sessionstore.jsonlz4: Dedupe `"$($previoustab.entries.url)`""
+                                $tabsArrayList.Remove($previoustab)
+                            }
+                            $previoustab = $tab
+                        }
+
+                        # PSObjectに上書きで戻す
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'tabs' -Value $tabsArrayList -Force
+
+                        # タブの数
+                        Write-Host ("INFO sessionstore.jsonlz4: " + $sessionstore.windows.tabs.Count + " Tabs")
+
+                        # ウィンドウサイズ
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'sizemodeBeforeMinimized' -Value "maximized" -Force
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'width' -Value 1920 -Force
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'height' -Value 1080 -Force
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'screenX' -Value 0 -Force
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'screenY' -Value 0 -Force
+                        $sessionstore.windows | Add-Member -MemberType NoteProperty -Name 'sizemode' -Value "maximized" -Force
+
+                        # [PSCustomObject] -> sessionstore.json
+                        $sessionstore | ConvertTo-Json -Depth 10 | Out-File -FilePath "$winJsonlz4Parent/sessionstore.json" -Encoding utf8
+                    }
+                }
+            }
+            End =
+            {
+                if ($sessionstore.windows.Count -lt 2)
+                {
+                    # avih/jsonlz4 で sessionstore.json -> sessionstore.jsonlz4(上書き!!)
+                    wsl.exe -- /mnt/c/repos/dejsonlz4/jsonlz4 $wslJsonPath $wslJsonlz4Path
+
+                    # sessionCheckpoints.jsonを削除しないと、Firefoxに反映されない
+                    Remove-Item "$winJsonlz4Parent/sessionCheckpoints.json" -Force
+                }
+            }
         }
         #Logicool Optionsの感度・キー割り当て設定
         <#[PSCustomObject]@{
@@ -710,7 +857,6 @@ foreach ($line in (Get-Content -LiteralPath $PSCommandPath) -split "`n")
     }
     $line
 }
-Export-Clixml -InputObject $Settings -Depth 10
 
 "#--------------------前処理--------------------"
 &$Settings.BeginScript
