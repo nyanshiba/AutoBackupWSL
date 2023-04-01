@@ -62,13 +62,13 @@ $Settings +=
         #リモートサーバのアーカイブをミラーしつつ、変更があっても削除しない例
         [PSCustomObject]@{
             SrcPath = "example.com:/mnt/backup/Archive" #rsyncは.ssh/configを参照できる
-            rsyncArgument = "-avz --bwlimit=1750" #deleteを同期しない
+            rsyncArgument = "-avz -e 'ssh -T -o Compression=no' --bwlimit=1750" #deleteを同期しない
             DstPath = "D:\Mirror\RemoteServer"
         }
         #Xperia 1 II(Android 11端末)のTermuxのsshdに接続してリモートバックアップ
         [PSCustomObject]@{
             SrcPath = "12:/storage/emulated/0/DCIM"
-            rsyncArgument = "-avz --copy-links --exclude='.trashed-*'" # Android<=10は https://wiki.termux.com/wiki/Termux-setup-storage
+            rsyncArgument = "-avz -e 'ssh -T -o Compression=no' --copy-links --exclude='.trashed-*'" # Android<=10は https://wiki.termux.com/wiki/Termux-setup-storage
             DstPath = "E:\Xperia1ii"
         }
         [PSCustomObject]@{
@@ -710,6 +710,7 @@ foreach ($line in (Get-Content -LiteralPath $PSCommandPath) -split "`n")
     }
     $line
 }
+Export-Clixml -InputObject $Settings -Depth 10
 
 "#--------------------前処理--------------------"
 &$Settings.BeginScript
