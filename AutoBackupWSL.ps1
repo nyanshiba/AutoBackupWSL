@@ -771,7 +771,7 @@ function Invoke-DiffBackup
 
     if ($Begin)
     {
-        Invoke-Command -ScriptBlock $Begin
+        . $Begin
     }
 
     if ($IsWindows)
@@ -790,7 +790,7 @@ function Invoke-DiffBackup
     
     if ($End)
     {
-        Invoke-Command -ScriptBlock $End
+        . $End
     }
 }
 
@@ -810,7 +810,7 @@ function Invoke-IncrBackup
 
     if ($Begin)
     {
-        Invoke-Command -ScriptBlock $Begin
+        . $Begin
     }
 
     if ($IsWindows)
@@ -830,7 +830,7 @@ function Invoke-IncrBackup
 
     if ($End)
     {
-        Invoke-Command -ScriptBlock $End
+        . $End
     }
 }
 
