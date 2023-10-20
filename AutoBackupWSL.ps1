@@ -942,7 +942,7 @@ $Settings.GenList | Where-Object {$_.rsyncArgument -And $_.SrcPath -And $_.DstPa
 }
 
 #バックアップ終了時刻
-$End = "$((Get-Date).ToString("yyyy-MM-dd (ddd) HH:mm:ss"))"
+$End = "$((Get-Date).ToString("HH:mm:ss"))"
 
 #終了コード配列を参照して、エラーがあった数を集計
 $ErrorCount = ($ExitCode | Where-Object {$_ -ne 0}).Count
