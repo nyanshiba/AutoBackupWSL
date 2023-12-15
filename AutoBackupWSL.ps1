@@ -913,8 +913,8 @@ $Settings.GenList | Where-Object {$_.rsyncArgument -And $_.SrcPath -And $_.DstPa
             }
             #DstParentPath内で最も古い世代をリネームして使いまわすことで、変更が少ない&サイズが大きい場合は特に速くなる
             #直前の世代とのインクリメンタルではあるが、最古の世代との差分であるので、ログが汚くなる
-            Rename-Item -LiteralPath "$($_.DstParentPath)/$($AllGen | Select-Object -Index 0)" "$($_.DstParentPath)$($Settings.DateTime)"
-            "INFO Rename-Item: $($_.DstParentPath)/$($AllGen | Select-Object -Index 0) -> $($_.DstParentPath)$($Settings.DateTime)"
+            Rename-Item -LiteralPath "$($_.DstParentPath)/$($AllGen | Sort-Object -Descending | Select-Object -Skip ($_.DstGenThold - 1) | Select-Object -Index 0)" "$($_.DstParentPath)$($Settings.DateTime)"
+            "INFO Rename-Item: $($_.DstParentPath)/$($AllGen | Sort-Object -Descending | Select-Object -Skip ($_.DstGenThold - 1) | Select-Object -Index 0) -> $($_.DstParentPath)$($Settings.DateTime)"
         }
 
         #DstParentPath内のディレクトリ構造をログに出力
