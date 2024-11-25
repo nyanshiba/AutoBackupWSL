@@ -551,9 +551,9 @@ function Send-Toast
         }
         finally
         {
-            $Library = (Get-Item (Get-Package -Name Microsoft.Windows.SDK.NET.Ref).Source).DirectoryName
-            Add-Type -AssemblyName "$Library\lib\Microsoft.Windows.SDK.NET.dll"
-            Add-Type -AssemblyName "$Library\lib\WinRT.Runtime.dll"
+            $Library = (Get-ChildItem -LiteralPath "$((Get-Item (Get-Package -Name Microsoft.Windows.SDK.NET.Ref).Source).DirectoryName)\lib" | Select-Object -Last 1).FullName
+            Add-Type -AssemblyName "$Library\Microsoft.Windows.SDK.NET.dll"
+            Add-Type -AssemblyName "$Library\WinRT.Runtime.dll"
         }
     }
     else
